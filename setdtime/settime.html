@@ -1,0 +1,34 @@
+<script
+  src="jquery.js"></script>
+<script>
+
+
+$(function(){
+	$("#myButton").click(function(){
+			// Create a new Date object
+			var currentDate = new Date();
+
+			// Get the current time components
+			var year = currentDate.getFullYear();
+			var month = ('0' + (currentDate.getMonth() + 1)).slice(-2); // Month is zero-based, so we add 1 and pad with leading zero if necessary
+			var day = ('0' + currentDate.getDate()).slice(-2); // Pad with leading zero if necessary
+			var hours = ('0' + currentDate.getHours()).slice(-2); // Pad with leading zero if necessary
+			var minutes = ('0' + currentDate.getMinutes()).slice(-2); // Pad with leading zero if necessary
+			var seconds = ('0' + currentDate.getSeconds()).slice(-2); // Pad with leading zero if necessary
+
+			// Format the time
+			var formattedTime = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+
+			// Display the current time
+			console.log("Current time: " + formattedTime);
+			$.post("http://10.42.0.1:7123/sdt?dt="+formattedTime, function(data, status){
+			    alert("Data: " + data + "\nStatus: " + status);
+			});
+		});
+});
+
+</script>
+<body>
+<h1>Click to set time of float bottle</h1>
+<button id='myButton'>Update</button>
+</body>
