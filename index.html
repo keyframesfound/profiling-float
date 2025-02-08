@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Page Title</title>
+</head>
+<body>
+
+<h1>Steps for Running</h1>
+
+Check Pi System Date
+# date
+<h3>Step 1: (Set system time, do it everytime you power on the system including reboot. IMPORTANT)</h3>
+<a href="http://10.42.0.1/setdtime/settime.html" target="_blank"></a>
+
+<h3>Step 2a: (Initialize pressure sensor)</h3>
+<a href="http://10.42.0.1:7123/p/sp" target="_blank">Initial</a>
+
+<h3>Step 2b: (Set stepper speed 1000-5000, smaller faster)</h3>
+<a href="http://10.42.0.1:7123/sspeed?speed=3500" target="_blank">Set Speed 3500</a>
+<br/> or 
+Copy, paste and edit following highlight<br/>
+http://10.42.0.1:7123/sspeed?speed=<span style="background-color: yellow;">3500</span>
+
+<h3>Step 2c: (Start sinking and floating)</h3>
+<a href="http://10.42.0.1:7123/fud target="_blank">Sink and Float</a>
+
+<h3>Step 2d: (Stop pressure sensor - IMPORTANT)</h3>
+<a href="http://10.42.0.1:7123/p/ep" target="_blank">Stop Pressure sensor</a>
+
+<h3>Step 3: (Generate Chart - remember to reconnect wifi)</h3>
+<a href="http://10.42.0.1/chart/chart_main.php" target="_blank">Generate Chart</a>
+
+</body>
+</html>
