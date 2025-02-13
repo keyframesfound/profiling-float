@@ -6,8 +6,8 @@ Send these commands through the Serial Monitor at 9600 baud rate.
 
 ### Set Direction (x)
 ```
-x0    // Counter-clockwise rotation
-x1    // Clockwise rotation
+x0    // Set rotation to Counter Clockwise (HIGH)
+x1    // Set rotation to Clockwise (LOW)
 ```
 
 ### Set Motor Speed (d)
@@ -26,7 +26,7 @@ z1600    // Move 1600 steps (8 full rotations for a 200-step motor)
 ```
 Maximum steps per command: 3200
 
-### Emergency Stop
+### Emergency Stop (!)
 ```
-!        // Send '!' character to immediately stop motor
+!        // Immediately stops the motor during a step command.
 ```

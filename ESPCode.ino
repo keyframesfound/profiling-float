@@ -10,8 +10,8 @@ By 太极创客（http://www.taichi-maker.com）
 */
 
 // For ESP8266 update pin definitions (using NodeMCU pin labels)
-const int dirPin = D1;    // direction control pin for ESP8266
-const int stepPin = D2;   // step control pin for ESP8266
+const int dirPin = 5;    // direction control pin for ESP8266
+const int stepPin = 4;   // step control pin for ESP8266
 
 const int moveSteps = 200;    // test steps
 char cmd;
@@ -42,38 +42,51 @@ void loop() {
 
 // Updated: runUsrCmd without CNC hat commands
 void runUsrCmd(){
-  switch(cmd){ 
-    case 'x':  // Set motor rotation direction
-      Serial.print("Set Rotation To ");
-      if (data == 0){
-        digitalWrite(dirPin, LOW);
-        Serial.println("Counter Clockwise.");
-      } else {
-        digitalWrite(dirPin, HIGH);
-        Serial.println("Clockwise.");
-      }
-      break;
-      
-    case 'z': // Run stepper for a number of steps using set motor speed
+  switch(cmd){
+    case 'U': {
+      // Set direction for upward movement
+      digitalWrite(dirPin, HIGH);
       runStepper(motorSpeed, data);
+      Serial.print("ACK: Moved Up ");
+      Serial.print(data);
+      Serial.println(" steps");
       break;
- 
-    case 'd': // Set motor step delay speed
+    }
+    case 'D': {
+      // Set direction for downward movement
+      digitalWrite(dirPin, LOW);
+      runStepper(motorSpeed, data);
+      Serial.print("ACK: Moved Down ");
+      Serial.print(data);
+      Serial.println(" steps");
+      break;
+    }
+    case 'd': {
+      // Set motor speed
       motorSpeed = data;
-      Serial.print("Set Motor Speed To ");
-      Serial.println(data);
+      Serial.print("ACK: Motor speed set to ");
+      Serial.println(motorSpeed);
       break;
-              
-    default:
-      Serial.println("Unknown Command");
+    }
+    default: {
+      Serial.println("ERR: Unknown command");
+      break;
+    }
   }
 }
 
 void runStepper (int rotationSpeed, int stepNum){
   for(int x = 0; x < stepNum; x++) {
+    if (Serial.available() && Serial.peek() == '!') {
+      Serial.read();  // consume emergency stop command
+      Serial.println("Emergency Stop!");
+      break;
+    }
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(rotationSpeed);
+    yield(); // allow watchdog feeding
     digitalWrite(stepPin, LOW);
     delayMicroseconds(rotationSpeed);
+    yield(); // allow watchdog feeding
   }
 }
