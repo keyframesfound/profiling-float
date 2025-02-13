@@ -31,31 +31,36 @@ void loop() {
 
 // Updated: runUsrCmd without CNC hat commands
 void runUsrCmd(){
-  switch(cmd){ 
-    case 'x':  // Set motor rotation direction
-      Serial.print("Set Rotation To ");
-      if (data == 0){
-        digitalWrite(dirPin, HIGH);  // swapped: now HIGH means Counter Clockwise
-        Serial.println("Counter Clockwise.");
-      } else {
-        digitalWrite(dirPin, LOW);   // LOW means Clockwise
-        Serial.println("Clockwise.");
-      }
-      break;
-      
-    case 'z': // Run stepper for a number of steps using set motor speed
+  switch(cmd){
+    case 'U': {
+      // Set direction for upward movement
+      digitalWrite(dirPin, HIGH);
       runStepper(motorSpeed, data);
+      Serial.print("ACK: Moved Up ");
+      Serial.print(data);
+      Serial.println(" steps");
       break;
-      
-    case 'd': // Set motor step delay speed
+    }
+    case 'D': {
+      // Set direction for downward movement
+      digitalWrite(dirPin, LOW);
+      runStepper(motorSpeed, data);
+      Serial.print("ACK: Moved Down ");
+      Serial.print(data);
+      Serial.println(" steps");
+      break;
+    }
+    case 'd': {
+      // Set motor speed
       motorSpeed = data;
-      Serial.print("Set Motor Speed To ");
-      Serial.println(data);
+      Serial.print("ACK: Motor speed set to ");
+      Serial.println(motorSpeed);
       break;
-      
-    case '!': // Emergency Stop command
-      Serial.println("Emergency Stop!");
+    }
+    default: {
+      Serial.println("ERR: Unknown command");
       break;
+    }
   }
 }
 
