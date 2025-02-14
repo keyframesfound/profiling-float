@@ -79,6 +79,91 @@ def DbInsert(table, field_lstr, value_lstr):
         db.close()
 
 ########################################################
+# Pressure Sensor API Function
+########################################################
+sensor = ms5837.MS5837_30BA() # Default I2C bus is 1 (Raspberry Pi 3)
+# We must initialize the sensor before reading it
+if not sensor.init():
+    print("Sensor could not be initialized")
+    exit(1)
+# We have to read values from sensor to update pressure and temperature
+if not sensor.read():
+    print("Sensor read failed!")
+    exit(1)
+
+pdata_list = []  # An empty list
+def AddCompareList(new_e, reach_botlv_val): # new record, Reach Bot Lv Value
+    cnt = 0
+    max_rec = 5
+    if len(pdata_list) < MaxRec: # Limit to keep 5 records for comparison
+        pdata_list.append(new_e)
+    else:
+        for exist_e in pdata_list[-MaxRec:]:
+            if abs(int(new_e) - int(exist_e)) < int(reach_botlv_val):
+                cnt += 1
+                
+        if cnt == max_rec:
+            print("MATE Float reach the bottom and ready to float up")
+            FloatMovement(float_up)
+        else:
+            pdata_list.pop(0)
+            pdata_list.append(new_e)
+
+def PressCollection(p_event):
+    while not p_event.is_set():
+        print("Pressure-Depth Data Collection Activated!")
+        if sensor.read():
+        # print(("P: %0.1f mbar\tT: %0.2f C\tD: %0.2f m\tAltitude: %0.2f m") % (
+            # sensor.pressure(), # Default is mbar (no arguments)
+            # sensor.temperature(), # Default is degrees C (no arguments)
+            # sensor.depth(),
+            # sensor.altitude()))
+#             curr_field = "uuid, p, t, d, a"
+            curr_field = "uuid, p, t, d, a"
+            print(myuuid)
+            testuuid="hello"
+#             curr_value = (("%s, %0.1f, %0.2f, %0.2f, %0.2f") % (
+            curr_value = (("%s, %0.1f, %0.2f, %0.2f, %0.2f") % (
+#                 str(myuuid),
+                '\"' + str(myuuid) + '\"',
+                sensor.pressure(ms5837.UNITS_kPa), # Get pressure in kilopascal(no arguments)
+                sensor.temperature(), # Default is degrees C (no arguments)
+                sensor.depth(),
+                sensor.altitude()))
+#             AddCompareList(sensor.altitude(), 5)
+            DbInsert('rov_float', curr_field, curr_value)
+            time.sleep(5)
+        else:
+            print("Sensor read retry!")
+
+class StartPressCollection(Resource):
+    def get(self):
+        if 'p_event' not in app.config or app.config['p_event'].is_set():
+            import threading
+            p_event = threading.Event()
+            app.config['p_event'] = p_event
+
+            task_thread = threading.Thread(target=PressCollection, args=(p_event,))
+            task_thread.start()
+
+            return {'message': 'PressCollection started'}
+        else:
+            return {'message': 'PressCollection already running'}
+
+class StopPressCollection(Resource):
+    def get(self):
+        if 'p_event' in app.config and not app.config['p_event'].is_set():
+            app.config['p_event'].set()
+            app.config.pop('p_event', None)
+            return {'message': 'PressCollection stopped'}
+        else:
+            return {'message': 'PressCollection is not running'}
+
+class ReportPressCollection(Resource):
+    def get(self):
+        return {'message': 'ReportPressCollection API'}
+
+########################################################
 # Buoyancy Stepper Control API Function
 ########################################################
 step_no = "10000"
