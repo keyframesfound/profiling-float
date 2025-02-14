@@ -28,6 +28,10 @@ This guide details the steps to set up your environment and install necessary de
    ```
    pip install --upgrade pip
    ```
+   sudo apt-get install python-smbus2
+   ```
+   git clone https://github.com/bluerobotics/ms5837-python
+   ```
 2. Install dependencies from requirements file:
    ```
    pip install -r requirements.txt

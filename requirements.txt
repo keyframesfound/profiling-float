@@ -7,3 +7,4 @@ flask-restful
 flask-cors
 flask-mysql
 pyserial
+
