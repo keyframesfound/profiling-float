@@ -24,7 +24,7 @@ import uuid
 import subprocess
 import multiprocessing
 
-import ms5837
+import ms5837n
 import RPi.GPIO as GPIO
 from gpiozero import Button
 

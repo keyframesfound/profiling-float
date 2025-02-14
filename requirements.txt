@@ -1,0 +1,9 @@
+requests
+ms5837n @ git+https://github.com/youruser/ms5837n.git@v1.0.0  # specify desired version from GitHub
+RPi.GPIO
+gpiozero
+flask
+flask-restful
+flask-cors
+flask-mysql
+pyserial

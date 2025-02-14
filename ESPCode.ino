@@ -43,6 +43,22 @@ void runUsrCmd(){
       }
       break;
       
+    // New case for upward movement
+    case 'U': 
+      Serial.print("Float Up with steps = ");
+      Serial.println(data);
+      digitalWrite(dirPin, HIGH);
+      runStepper(motorSpeed, data);
+      break;
+      
+    // New case for downward movement
+    case 'D': 
+      Serial.print("Float Down with steps = ");
+      Serial.println(data);
+      digitalWrite(dirPin, LOW);
+      runStepper(motorSpeed, data);
+      break;
+      
     case 'z': // Run stepper for a number of steps using set motor speed
       runStepper(motorSpeed, data);
       break;
