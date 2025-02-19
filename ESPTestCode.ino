@@ -12,20 +12,26 @@ void setup() {
   pinMode(dirPin, OUTPUT);       // Set direction pin as output
 
   Serial.begin(9600);
+  delay(2000);            // wait for connection to stabilize
+  Serial.flush();         // flush any stale data
   Serial.println("++++++++ ESP8266 Single-Stepper Demo ++++++++");
   Serial.println("Please input motor command:");
 }
 
 void loop() {
   if (Serial.available()) {
-    cmd = Serial.read();
-    Serial.print("cmd = ");
-    Serial.print(cmd);
-    Serial.print(" , ");
-    data = Serial.parseInt();
-    Serial.print("data = ");
-    Serial.println(data);
-    runUsrCmd();
+    // Read complete command line terminated by newline.
+    String inputLine = Serial.readStringUntil('\n');
+    inputLine.trim();  // remove any stray whitespace/newline
+    if(inputLine.length() >= 2) {
+      cmd = inputLine.charAt(0);
+      data = inputLine.substring(1).toInt();
+      Serial.print("cmd = ");
+      Serial.print(cmd);
+      Serial.print(" , data = ");
+      Serial.println(data);
+      runUsrCmd();
+    }
   }
 }
 
