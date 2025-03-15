@@ -19,13 +19,13 @@ html_template = '''
 <body>
     <h1>Float Control Pannel</h1>
     <!-- Button to open a specific IP webpage -->
-    <button onclick="window.location.href='http://192.168.1.101';">Sink Float</button>
+    <button onclick="window.open('http://192.168.1.101', '_blank');">Sink Float</button>
     
     <!-- Button to open a specific webpage -->
-    <button onclick="window.location.href='http://192.168.1.101';">Float Pressure Data</button>
+    <button onclick="window.open('http://192.168.1.101', '_blank');">Float Pressure Data</button>
     
     <!-- Third button that opens another specific webpage -->
-    <button onclick="window.location.href='http://192.168.1.101';">Generate Graph</button>
+    <button onclick="window.open('http://192.168.1.101', '_blank');">Generate Graph</button>
 </body>
 </html>
 '''
