@@ -17,15 +17,15 @@ html_template = '''
     </style>
 </head>
 <body>
-    <h1>Select a Page</h1>
+    <h1>Float Control Pannel</h1>
     <!-- Button to open a specific IP webpage -->
-    <button onclick="window.location.href='http://192.168.1.101';">Open IP Web Page</button>
+    <button onclick="window.location.href='http://192.168.1.101';">Sink Float</button>
     
     <!-- Button to open a specific webpage -->
-    <button onclick="window.location.href='http://example.com';">Open Example.com</button>
+    <button onclick="window.location.href='http://192.168.1.101';"Float Pressure Data</button>
     
     <!-- Third button that opens another specific webpage -->
-    <button onclick="window.location.href='http://anotherpage.com';">Open Another Page</button>
+    <button onclick="window.location.href='http://192.168.1.101';">Generate Graph</button>
 </body>
 </html>
 '''
@@ -35,5 +35,5 @@ def home():
     return render_template_string(html_template)
 
 if __name__ == '__main__':
-    # Run on all interfaces at port 5000.
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Run on all interfaces at port 3900.
+    app.run(debug=True, host='0.0.0.0', port=3900)
