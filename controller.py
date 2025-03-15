@@ -22,7 +22,7 @@ html_template = '''
     <button onclick="window.location.href='http://192.168.1.101';">Sink Float</button>
     
     <!-- Button to open a specific webpage -->
-    <button onclick="window.location.href='http://192.168.1.101';"Float Pressure Data</button>
+    <button onclick="window.location.href='http://192.168.1.101';">Float Pressure Data</button>
     
     <!-- Third button that opens another specific webpage -->
     <button onclick="window.location.href='http://192.168.1.101';">Generate Graph</button>
