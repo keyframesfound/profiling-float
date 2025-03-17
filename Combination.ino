@@ -32,7 +32,7 @@ int sensorIdx = 0;
 // Stepper motor pins and settings
 const int dirPin  = 5;  // Direction control
 const int stepPin = 4;  // Step control
-int motorSpeed = 1000;  // Delay in microseconds between steps
+int motorSpeed = 600;  // Delay in microseconds between steps
 
 // Web endpoint handler for sensor data (/data)
 void handleData() {
