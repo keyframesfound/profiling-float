@@ -1,11 +1,12 @@
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h> // added header
 
 // Replace with your network credentials.
-const char* ssid     = "ssid";
-const char* password = "123123123";
+const char* ssid     = "SSCFloat";
+const char* password = "DT1234dt";
 
-// WiFi server listening on port 80 for incoming HTTP requests
-WiFiServer server(80);
+// Use ESP8266WebServer instead of WiFiServer.
+ESP8266WebServer server(80);
 
 // Stepper motor control pins (using NodeMCU pin labels)
 const int dirPin = 5;    // Direction control pin
@@ -17,36 +18,40 @@ void setup() {
     // Initialize USB Serial for debugging output at 115200 baud.
     Serial.begin(115200);
     delay(100);
-
-    // Connect to WiFi network using the WiFi port.
+    
+    // Create Access Point so you can connect to it.
     Serial.println();
-    Serial.print("Connecting to ");
+    Serial.print("Creating WiFi network (AP mode) with SSID: ");
     Serial.println(ssid);
     
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
+    WiFi.mode(WIFI_AP);                         // AP mode active
+    WiFi.softAP(ssid, password);                // Start the AP with given credentials
     
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
+    IPAddress apIP = WiFi.softAPIP();            // Get AP IP
+    Serial.print("AP IP address: ");
+    Serial.println(apIP);
     
-    Serial.println();
-    Serial.print("Connected! IP address: ");
-    Serial.println(WiFi.localIP());
-
-    // Start the WiFi server on port 80.
-    server.begin();
+    // Register the "/control" route.
+    server.on("/control", [](){
+        if(server.hasArg("action") && server.arg("action") == "start") {
+            // start the stepper motor turning (10000 steps clockwise)
+            runStepper(10000, true);
+            server.send(200, "text/html", "<html><body><p>Stepper motor turning.</p><a href='/control'>Back</a></body></html>");
+        } else {
+            // Provide the control page with a button to start the motor.
+            server.send(200, "text/html", "<html><body><button onclick=\"location.href='/control?action=start'\">Start Stepper</button></body></html>");
+        }
+    });
+    server.begin(); // start the web server
 
     // Initialize the stepper motor pins.
     pinMode(dirPin, OUTPUT);
     pinMode(stepPin, OUTPUT);
 }
 
-void runStepper(int steps) {
-    // Set motor direction to clockwise (assuming LOW for clockwise).
-    digitalWrite(dirPin, LOW);
-  
+void runStepper(int steps, bool clockwise) {
+    // Set motor direction: LOW for clockwise, HIGH for counterclockwise.
+    digitalWrite(dirPin, (clockwise ? LOW : HIGH));
     for (int i = 0; i < steps; i++) {
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
@@ -58,31 +63,5 @@ void runStepper(int steps) {
 
 void loop() {
     // Listen for an incoming client on WiFi port 80.
-    WiFiClient client = server.available();
-    
-    if (client) {
-        Serial.println("New client pinged on WiFi port 80. Moving stepper motor 1000 steps clockwise.");
-        
-        // Wait until the client sends data then flush the incoming request.
-        while (client.connected() && !client.available()) {
-            delay(1);
-        }
-        while (client.available()) {
-            client.read();
-        }
-        
-        // Move the stepper motor 1000 steps clockwise.
-        runStepper(1000);
-          
-        // Send HTTP response back to the client.
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-Type: text/plain");
-        client.println("Connection: close");
-        client.println();
-        client.println("Stepper motor moved 1000 steps clockwise.");
-        
-        delay(1);
-        client.stop();
-        Serial.println("HTTP client disconnected.");
-    }
+    server.handleClient(); // process incoming HTTP requests
 }
