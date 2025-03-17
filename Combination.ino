@@ -25,8 +25,8 @@ ESP8266WebServer server(80);
 
 // Sensor iteration variables
 String iterationData = "";
-float pressures[10];
-float temperatures[10];
+float pressures[60];      // changed from 10 to 60 for 1 minute aggregation
+float temperatures[60];   // changed from 10 to 60 for 1 minute aggregation
 int sensorIdx = 0;
 
 // Stepper motor pins and settings
@@ -98,9 +98,9 @@ void loop() {
   pressures[sensorIdx] = sensor.pressure();
   temperatures[sensorIdx] = sensor.temperature();
   sensorIdx++;
-  if (sensorIdx >= 10) {
+  if (sensorIdx >= 60) { // changed condition: now aggregates readings for 1 minute
     iterationData = "";
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 60; i++) {
       iterationData += String(pressures[i]) + "," + String(temperatures[i]) + "\n";
     }
     sensorIdx = 0;
