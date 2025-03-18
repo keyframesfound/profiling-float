@@ -36,7 +36,8 @@ def graph():
     <html>
     <head>
         <title>Graph Generator</title>
-        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Changed to load Chart.js locally -->
+        <script src="/static/js/chart.js"></script>
     </head>
     <body>
         <h1>Graph Generator</h1>

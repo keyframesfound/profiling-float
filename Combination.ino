@@ -42,8 +42,10 @@ void handleData() {
 // Web endpoint handler for stepper motor control (/control)
 void handleControl() {
   if(server.hasArg("action") && server.arg("action") == "start") {
-    runStepper(10000, true); // 10000 steps clockwise
-    server.send(200, "text/html", "<html><body><p>Stepper motor turning.</p><a href='/control'>Back</a></body></html>");
+    runStepper(10000, true);  // Run clockwise for 10000 steps
+    delay(45000);             // Pause for 45 seconds
+    runStepper(10000, false); // Run anticlockwise for 10000 steps
+    server.send(200, "text/html", "<html><body><p>Stepper executed: 10000 steps clockwise, 45 sec pause, 10000 steps anticlockwise.</p><a href='/control'>Back</a></body></html>");
   } else {
     server.send(200, "text/html", "<html><body><button onclick=\"location.href='/control?action=start'\">Start Stepper</button></body></html>");
   }
