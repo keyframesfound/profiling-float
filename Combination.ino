@@ -43,7 +43,7 @@ void handleData() {
 void handleControl() {
   if(server.hasArg("action") && server.arg("action") == "start") {
     runStepper(10000, true);  // Run clockwise for 10000 steps
-    delay(4500);             // Pause for 45 seconds
+    delay(45000);             // Pause for 45 seconds
     runStepper(10000, false); // Run anticlockwise for 10000 steps
     server.send(200, "text/html", "<html><body><p>Stepper executed: 10000 steps clockwise, 45 sec pause, 10000 steps anticlockwise.</p><a href='/control'>Back</a></body></html>");
   } else {
