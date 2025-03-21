@@ -2,6 +2,10 @@
 #include <MS5837.h>
 #include <WiFi.h>              // Replaced ESP8266WiFi.h for ESP32
 #include <WebServer.h>         // Replaced ESP8266WebServer.h for ESP32
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/semphr.h"
 
 // Define sensor I2C pins for ESP32 (cables connect as labeled)
 #ifndef D5
@@ -41,16 +45,57 @@ int motorSpeed = 600;  // Delay in microseconds between steps
 #define ULTRASONIC_ECHO_PIN 0     // Connect Ultrasonic Echo to GPIO0 (use caution on ESP32)
 const float ULTRASONIC_DIST_THRESHOLD = 10.0; // Threshold in cm
 
+// Mutex for protecting shared resources
+SemaphoreHandle_t dataLock = NULL;
+TaskHandle_t sensorTaskHandle = NULL;
+TaskHandle_t webTaskHandle = NULL;
+TaskHandle_t motorTaskHandle = NULL;
+
+// Queue for motor commands
+QueueHandle_t motorCommandQueue = NULL;
+
+// Add these near other global variables
+volatile bool motorBusy = false;
+SemaphoreHandle_t motorStatusLock = NULL;
+
+// Sensor reading task
+void sensorTask(void *parameter) {
+  while(1) {
+    sensor.read();
+    
+    if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
+      pressures[sensorIdx] = sensor.pressure();
+      temperatures[sensorIdx] = sensor.temperature();
+      sensorIdx = (sensorIdx + 1) % 120;
+      iterationCount++;
+      xSemaphoreGive(dataLock);
+    }
+    
+    vTaskDelay(pdMS_TO_TICKS(1000)); // 1 second delay
+  }
+}
+
+// Web server task
+void webTask(void *parameter) {
+  while(1) {
+    server.handleClient();
+    vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to prevent watchdog triggers
+  }
+}
+
 // Updated web endpoint handler for /data to always display the latest readings
 void handleData() {
-  int count = iterationCount < 120 ? iterationCount : 120;
-  String data = "";
-  // Starting at sensorIdx yields the oldest reading in the circular buffer.
-  for (int i = 0; i < count; i++) {
-    int idx = (sensorIdx + i) % 120;
-    data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
+  if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
+    int count = iterationCount < 120 ? iterationCount : 120;
+    String data = "";
+    // Starting at sensorIdx yields the oldest reading in the circular buffer.
+    for (int i = 0; i < count; i++) {
+      int idx = (sensorIdx + i) % 120;
+      data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
+    }
+    xSemaphoreGive(dataLock);
+    server.send(200, "text/plain", data);
   }
-  server.send(200, "text/plain", data);
 }
 
 // New function to measure distance with the ultrasonic sensor
@@ -74,10 +119,12 @@ void runStepperSequence() {
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
         delayMicroseconds(motorSpeed);
+        taskYIELD(); // allow other tasks to run
     }
     // Wait until the ultrasound sensor detects the float (distance <= threshold)
     while(getUltrasoundDistance() > ULTRASONIC_DIST_THRESHOLD) {
         delay(10);
+        taskYIELD();
     }
     // 45-second delay after hitting the bottom
     delay(45000);
@@ -88,16 +135,74 @@ void runStepperSequence() {
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
         delayMicroseconds(motorSpeed);
+        taskYIELD();
     }
 }
 
+// Modify motorTask
+void motorTask(void *parameter) {
+  bool command;
+  while(1) {
+    if(xQueueReceive(motorCommandQueue, &command, portMAX_DELAY)) {
+      if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
+        motorBusy = true;
+        xSemaphoreGive(motorStatusLock);
+      }
+      
+      runStepperSequence();
+      
+      if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
+        motorBusy = false;
+        xSemaphoreGive(motorStatusLock);
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
 // Update the web endpoint handler to trigger the new sequence
+// Modify handleControl
 void handleControl() {
   if(server.hasArg("action") && server.arg("action") == "start") {
-    runStepperSequence();
-    server.send(200, "text/html", "<html><body><p>Stepper sequence executed.</p><a href='/control'>Back</a></body></html>");
+    bool canStart = false;
+    
+    if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
+      canStart = !motorBusy;
+      xSemaphoreGive(motorStatusLock);
+    }
+    
+    if (canStart) {
+      bool command = true;
+      xQueueSend(motorCommandQueue, &command, portMAX_DELAY);
+      server.send(200, "text/html", 
+        "<html><body>"
+        "<p>Stepper sequence started.</p>"
+        "<p>Motor is busy. Please wait for completion.</p>"
+        "<a href='/control'>Back</a>"
+        "</body></html>");
+    } else {
+      server.send(200, "text/html", 
+        "<html><body>"
+        "<p>Motor is currently busy. Please wait.</p>"
+        "<a href='/control'>Back</a>"
+        "</body></html>");
+    }
   } else {
-    server.send(200, "text/html", "<html><body><button onclick=\"location.href='/control?action=start'\">Start Stepper Sequence</button></body></html>");
+    bool isBusy = false;
+    if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
+      isBusy = motorBusy;
+      xSemaphoreGive(motorStatusLock);
+    }
+    
+    String html = "<html><body>";
+    if (isBusy) {
+      html += "<p>Motor is currently running...</p>";
+      html += "<button disabled>Start Stepper Sequence</button>";
+    } else {
+      html += "<button onclick=\"location.href='/control?action=start'\">Start Stepper Sequence</button>";
+    }
+    html += "</body></html>";
+    server.send(200, "text/html", html);
   }
 }
 
@@ -148,18 +253,47 @@ void setup() {
   server.on("/data", handleData);
   server.on("/control", handleControl);
   server.begin();
+
+  // Create mutex and queue
+  dataLock = xSemaphoreCreateMutex();
+  motorCommandQueue = xQueueCreate(1, sizeof(bool));
+  
+  // Add this before creating tasks
+  motorStatusLock = xSemaphoreCreateMutex();
+  
+  // Create tasks with different priorities
+  xTaskCreatePinnedToCore(
+    sensorTask,
+    "SensorTask",
+    4096,
+    NULL,
+    2,
+    &sensorTaskHandle,
+    0  // Run on Core 0
+  );
+  
+  xTaskCreatePinnedToCore(
+    webTask,
+    "WebTask",
+    4096,
+    NULL,
+    1,
+    &webTaskHandle,
+    0  // Run on Core 0
+  );
+  
+  xTaskCreatePinnedToCore(
+    motorTask,
+    "MotorTask",
+    4096,
+    NULL,
+    3,  // Highest priority
+    &motorTaskHandle,
+    1  // Run on Core 1
+  );
 }
 
 void loop() {
-  // Sensor reading every 1 second.
-  sensor.read();
-  pressures[sensorIdx] = sensor.pressure();
-  temperatures[sensorIdx] = sensor.temperature();
-  
-  sensorIdx = (sensorIdx + 1) % 120;  // update the circular buffer index
-  iterationCount++;                  // track total iterations
-  
-  // Handle incoming client requests.
-  server.handleClient();
-  delay(1000);
+  // Empty loop as tasks handle everything
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }
