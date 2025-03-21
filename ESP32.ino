@@ -37,8 +37,8 @@ int motorSpeed = 600;  // Delay in microseconds between steps
 // New definitions for buttons and ultrasonic sensor with connection labels
 #define BUTTON_PIN_1 13    // Changed from GPIO15 to GPIO13 to avoid strapping pin
 #define BUTTON_PIN_2 14    // Changed from GPIO16 (unavailable) to GPIO14 
-#define ULTRASONIC_TRIGGER_PIN 27  // Changed from GPIO2 to GPIO27 to avoid strapping pin
-#define ULTRASONIC_ECHO_PIN 17    // GPIO17 is fine, no change needed
+#define ULTRASONIC_TRIGGER_PIN 1  // TX (GPIO1)
+#define ULTRASONIC_ECHO_PIN 3     // RX (GPIO3)
 const float ULTRASONIC_DIST_THRESHOLD = 10.0; // Threshold in cm
 
 // Mutex for protecting shared resources
@@ -103,9 +103,7 @@ float getUltrasoundDistance() {
     delayMicroseconds(10);
     digitalWrite(ULTRASONIC_TRIGGER_PIN, LOW);
     duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH);
-    float distance = duration * 0.034 / 2;
-    Serial.printf("Ultrasonic Reading - Duration: %ld, Distance: %.2f cm\n", duration, distance);
-    return distance;
+    return duration * 0.034 / 2;
 }
 
 // Modified runStepperSequence to add 45-second delay after bottom detection
@@ -217,135 +215,137 @@ void runStepper(int steps, bool clockwise) {
 }
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
-  
-  // Test serial communication
-  Serial.println("Serial communication test...");
-  Serial.println("If you can read this, serial RX/TX is working!");
-  
-  // Verify ultrasonic pins
-  Serial.printf("Ultrasonic Sensor Config - Trigger: GPIO%d, Echo: GPIO%d\n", 
-               ULTRASONIC_TRIGGER_PIN, ULTRASONIC_ECHO_PIN);
-  
-  // Initialize I2C with custom pins (Sensor: SDA on GPIO21, SCL on GPIO22)
-  Wire.begin(CUSTOM_SDA_PIN, CUSTOM_SCL_PIN);
+    // Remove Serial.begin() since we're using RX/TX for ultrasonic
+    delay(1000);
+    
+    // Initialize ultrasonic sensor pins first
+    pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT);
+    pinMode(ULTRASONIC_ECHO_PIN, INPUT);
+    
+    // Test serial communication
+    Serial.println("Serial communication test...");
+    Serial.println("If you can read this, serial RX/TX is working!");
+    
+    // Verify ultrasonic pins
+    Serial.printf("Ultrasonic Sensor Config - Trigger: GPIO%d, Echo: GPIO%d\n", 
+                 ULTRASONIC_TRIGGER_PIN, ULTRASONIC_ECHO_PIN);
+    
+    // Initialize I2C with custom pins (Sensor: SDA on GPIO21, SCL on GPIO22)
+    Wire.begin(CUSTOM_SDA_PIN, CUSTOM_SCL_PIN);
 
-  // Initialize the sensor
-  if (!sensor.init()) {
-      Serial.println("Could not initialize the MS5837 sensor!");
-      while (1); // halt if sensor not detected
-  }
-  sensor.setFluidDensity(997); // 997 kg/m^3 for freshwater
-  Serial.println("MS5837 sensor initialized!");
-  
-  // Initialize stepper motor pins with connection labels
-  pinMode(dirPin, OUTPUT);  // Connect to Stepper Direction pin (GPIO5/D5)
-  pinMode(stepPin, OUTPUT); // Connect to Stepper Step pin (GPIO4/D4)
-  
-  // Initialize new pins for buttons and ultrasonic sensor with labels
-  pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Connect Button 1 (GPIO13/D13)
-  pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Connect Button 2 (GPIO14/D14)
-  pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO27/D27)
-  pinMode(ULTRASONIC_ECHO_PIN, INPUT); // Connect Ultrasonic Echo (GPIO17/D17)
-  
-  // Initialize WiFi in AP mode.
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(ssid, password);
-  Serial.print("Access Point started. IP: ");
-  Serial.println(WiFi.softAPIP());
-  
-  // ArduinoOTA setup
-  ArduinoOTA.onStart([]() {
-    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
-    Serial.println("Start updating " + type);
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nUpdate Complete");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress * 100) / total);
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-  });
-  ArduinoOTA.begin();
-  Serial.println("OTA Ready");
-  
-  // Define web server endpoints.
-  server.on("/data", handleData);
-  server.on("/control", handleControl);
-  
-  // Add OTA HTTP update endpoint using the same server instance.
-  server.on("/update", HTTP_POST, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
-  }, []() {
-    HTTPUpload &upload = server.upload();
-    if(upload.status == UPLOAD_FILE_START){
-      Serial.setDebugOutput(true);
-      Serial.printf("Update Start: %s\n", upload.filename.c_str());
-      if(!Update.begin(UPDATE_SIZE_UNKNOWN)){
-        Update.printError(Serial);
-      }
-    } else if(upload.status == UPLOAD_FILE_WRITE){
-      if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
-        Update.printError(Serial);
-      }
-    } else if(upload.status == UPLOAD_FILE_END){
-      if(Update.end(true)){
-        Serial.printf("Update Success: %u bytes\nRebooting...\n", upload.totalSize);
-      } else {
-        Update.printError(Serial);
-      }
-      Serial.setDebugOutput(false);
+    // Initialize the sensor (remove Serial messages)
+    if (!sensor.init()) {
+        while (1); // halt if sensor not detected
     }
-  });
-  
-  server.begin();
+    sensor.setFluidDensity(997);
+    
+    // Initialize stepper motor pins with connection labels
+    pinMode(dirPin, OUTPUT);  // Connect to Stepper Direction pin (GPIO5/D5)
+    pinMode(stepPin, OUTPUT); // Connect to Stepper Step pin (GPIO4/D4)
+    
+    // Initialize new pins for buttons and ultrasonic sensor with labels
+    pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Connect Button 1 (GPIO13/D13)
+    pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Connect Button 2 (GPIO14/D14)
+    pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO27/D27)
+    pinMode(ULTRASONIC_ECHO_PIN, INPUT); // Connect Ultrasonic Echo (GPIO17/D17)
+    
+    // Initialize WiFi in AP mode.
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(ssid, password);
+    Serial.print("Access Point started. IP: ");
+    Serial.println(WiFi.softAPIP());
+    
+    // ArduinoOTA setup
+    ArduinoOTA.onStart([]() {
+      String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
+      Serial.println("Start updating " + type);
+    });
+    ArduinoOTA.onEnd([]() {
+      Serial.println("\nUpdate Complete");
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress * 100) / total);
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+    ArduinoOTA.begin();
+    Serial.println("OTA Ready");
+    
+    // Define web server endpoints.
+    server.on("/data", handleData);
+    server.on("/control", handleControl);
+    
+    // Add OTA HTTP update endpoint using the same server instance.
+    server.on("/update", HTTP_POST, []() {
+      server.sendHeader("Connection", "close");
+      server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+    }, []() {
+      HTTPUpload &upload = server.upload();
+      if(upload.status == UPLOAD_FILE_START){
+        Serial.setDebugOutput(true);
+        Serial.printf("Update Start: %s\n", upload.filename.c_str());
+        if(!Update.begin(UPDATE_SIZE_UNKNOWN)){
+          Update.printError(Serial);
+        }
+      } else if(upload.status == UPLOAD_FILE_WRITE){
+        if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
+          Update.printError(Serial);
+        }
+      } else if(upload.status == UPLOAD_FILE_END){
+        if(Update.end(true)){
+          Serial.printf("Update Success: %u bytes\nRebooting...\n", upload.totalSize);
+        } else {
+          Update.printError(Serial);
+        }
+        Serial.setDebugOutput(false);
+      }
+    });
+    
+    server.begin();
 
-  // Create mutex and queue
-  dataLock = xSemaphoreCreateMutex();
-  motorCommandQueue = xQueueCreate(1, sizeof(bool));
-  
-  // Add this before creating tasks
-  motorStatusLock = xSemaphoreCreateMutex();
-  
-  // Create tasks with different priorities
-  xTaskCreatePinnedToCore(
-    sensorTask,
-    "SensorTask",
-    4096,
-    NULL,
-    2,
-    &sensorTaskHandle,
-    0  // Run on Core 0
-  );
-  
-  xTaskCreatePinnedToCore(
-    webTask,
-    "WebTask",
-    4096,
-    NULL,
-    1,
-    &webTaskHandle,
-    0  // Run on Core 0
-  );
-  
-  xTaskCreatePinnedToCore(
-    motorTask,
-    "MotorTask",
-    4096,
-    NULL,
-    3,  // Highest priority
-    &motorTaskHandle,
-    1  // Run on Core 1
-  );
+    // Create mutex and queue
+    dataLock = xSemaphoreCreateMutex();
+    motorCommandQueue = xQueueCreate(1, sizeof(bool));
+    
+    // Add this before creating tasks
+    motorStatusLock = xSemaphoreCreateMutex();
+    
+    // Create tasks with different priorities
+    xTaskCreatePinnedToCore(
+      sensorTask,
+      "SensorTask",
+      4096,
+      NULL,
+      2,
+      &sensorTaskHandle,
+      0  // Run on Core 0
+    );
+    
+    xTaskCreatePinnedToCore(
+      webTask,
+      "WebTask",
+      4096,
+      NULL,
+      1,
+      &webTaskHandle,
+      0  // Run on Core 0
+    );
+    
+    xTaskCreatePinnedToCore(
+      motorTask,
+      "MotorTask",
+      4096,
+      NULL,
+      3,  // Highest priority
+      &motorTaskHandle,
+      1  // Run on Core 1
+    );
 }
 
 void loop() {
