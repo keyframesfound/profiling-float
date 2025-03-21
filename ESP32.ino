@@ -110,7 +110,7 @@ float getUltrasoundDistance() {
 void runStepperSequence() {
     // Spin clockwise until BUTTON_PIN_1 is pressed
     digitalWrite(dirPin, LOW);  // clockwise
-    while(digitalRead(BUTTON_PIN_1) != LOW) {
+    while(digitalRead(BUTTON_PIN_1) != HIGH) { // Changed from LOW
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
@@ -126,7 +126,7 @@ void runStepperSequence() {
     delay(45000);
     // Spin anticlockwise until BUTTON_PIN_2 is pressed
     digitalWrite(dirPin, HIGH); // anticlockwise
-    while(digitalRead(BUTTON_PIN_2) != LOW) {
+    while(digitalRead(BUTTON_PIN_2) != HIGH) { // Changed from LOW
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
@@ -244,8 +244,8 @@ void setup() {
     pinMode(stepPin, OUTPUT); // Connect to Stepper Step pin (GPIO4/D4)
     
     // Initialize new pins for buttons and ultrasonic sensor with labels
-    pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Connect Button 1 (GPIO13/D13)
-    pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Connect Button 2 (GPIO14/D14)
+    pinMode(BUTTON_PIN_1, INPUT); // Changed from INPUT_PULLUP
+    pinMode(BUTTON_PIN_2, INPUT); // Changed from INPUT_PULLUP
     pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO27/D27)
     pinMode(ULTRASONIC_ECHO_PIN, INPUT); // Connect Ultrasonic Echo (GPIO17/D17)
     
