@@ -1,46 +1,68 @@
 # Profiling Float Project
 
-This project reads sensor data using an MS5837 sensor and aggregates the values for one minute. Additionally, it controls a stepper motor with a sequence triggered via a web interface and utilizes an ultrasonic sensor for float detection.
+An ESP32-based automated profiling float system for water measurements using MS5837 pressure/temperature sensor.
 
-## Hardware Connections
+## Hardware Requirements
 
-- **I2C Sensor (MS5837)**
-  - **SDA (Sensor SDA):** Connect to GPIO21 (D21) on the ESP32 WROOM 32UE.
-  - **SCL (Sensor SCL):** Connect to GPIO22 (D22) on the ESP32 WROOM 32UE.
+- ESP32 Development Board
+- MS5837 Pressure/Temperature Sensor
+- Stepper Motor
+- 2x Limit Switches
+- HC-SR04 Ultrasonic Sensor
+- Power Supply
+- Waterproof Housing
 
-- **Stepper Motor**
-  - **Direction Pin:** Connect to GPIO5 (D5).
-  - **Step Pin:** Connect to GPIO4 (D4).
+## Pin Connections
 
-- **Buttons**
-  - **Button 1:** Connect to GPIO15 (D15).
-  - **Button 2:** Connect to GPIO16 (D16).
+### Sensor Connections
+- MS5837 SDA → GPIO21 (D21)
+- MS5837 SCL → GPIO22 (D22)
 
-- **Ultrasonic Sensor**
-  - **Trigger:** Connect to GPIO2 (D2).
-  - **Echo:** Connect to GPIO17 (D17).
+### Stepper Motor
+- Direction Pin → GPIO5 (D5)
+- Step Pin → GPIO4 (D4)
 
-## WiFi Settings
+### Buttons/Switches
+- Bottom Limit Switch → GPIO13 (D13)
+- Top Limit Switch → GPIO14 (D14)
 
-- The device sets up a WiFi Access Point with:
-  - **SSID:** SSCFloat
-  - **Password:** DT1234dt
+### Ultrasonic Sensor
+- Trigger Pin → GPIO27 (D27)
+- Echo Pin → GPIO17 (D17)
 
-## Code Functionality
+## WiFi Setup
 
-- **Sensor Reading:** The MS5837 sensor provides pressure and temperature values.
-- **Data Aggregation:** Readings are accumulated over one minute and made available via the `/data` endpoint.
-- **Stepper Sequence:** A web endpoint (`/control`) triggers the stepper motor sequence. The sequence:
-  - Spins clockwise until Button 1 is pressed.
-  - Waits until the ultrasonic sensor detects the float (distance ≤ 10 cm).
-  - Waits an additional 45 seconds.
-  - Spins anticlockwise until Button 2 is pressed.
-- **Over-the-Air Updates:** Supports OTA firmware updates via Arduino OTA protocol  (`/update`)
-## Additional Features
+The device creates an Access Point with:
+- SSID: SSCFloat
+- Password: DT1234dt
+- IP Address: 192.168.4.1
 
-- **Over-the-Air Updates:** Supports OTA firmware updates via Arduino OTA protocol
-- **Task Management:** Uses FreeRTOS for concurrent operation:
-  - Sensor readings run on Core 0
-  - Web server runs on Core 0
-  - Motor control runs on Core 1 (highest priority)
-- **Thread Safety:** Uses mutexes and queues to protect shared resources
+## Web Interface
+
+- `/data` - View pressure and temperature readings
+- `/control` - Control stepper motor sequence
+- `/update` - OTA firmware updates
+
+## Operation
+
+1. The float performs continuous pressure/temperature measurements
+2. Motor sequence can be triggered via web interface
+3. Sequence includes:
+   - Descent until bottom limit switch
+   - Wait for float detection via ultrasonic sensor
+   - 45-second measurement pause
+   - Ascent until top limit switch
+
+## Development
+
+Built using Arduino IDE or PlatformIO. Required libraries:
+- MS5837
+- WiFi
+- WebServer
+- Wire
+- ArduinoOTA
+- Update
+
+## OTA Updates
+
+Supports both ArduinoOTA and web-based OTA updates for easy firmware deployment.

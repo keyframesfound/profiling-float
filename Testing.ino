@@ -35,10 +35,10 @@ const int stepPin = 4;  // Connect Stepper Step to GPIO4/D4
 int motorSpeed = 600;  // Delay in microseconds between steps
 
 // New definitions for buttons and ultrasonic sensor with connection labels
-#define BUTTON_PIN_1 15    // Connect Button 1 to GPIO15/D15
-#define BUTTON_PIN_2 16    // Connect Button 2 to GPIO16/D16
-#define ULTRASONIC_TRIGGER_PIN 2  // Connect Ultrasonic Trigger to GPIO2/D2
-#define ULTRASONIC_ECHO_PIN 17    // Updated: Use GPIO17 instead of GPIO0
+#define BUTTON_PIN_1 13    // Changed from GPIO15 to GPIO13 to avoid strapping pin
+#define BUTTON_PIN_2 14    // Changed from GPIO16 (unavailable) to GPIO14 
+#define ULTRASONIC_TRIGGER_PIN 27  // Changed from GPIO2 to GPIO27 to avoid strapping pin
+#define ULTRASONIC_ECHO_PIN 17    // GPIO17 is fine, no change needed
 const float ULTRASONIC_DIST_THRESHOLD = 10.0; // Threshold in cm
 
 // Mutex for protecting shared resources
@@ -234,9 +234,9 @@ void setup() {
   pinMode(stepPin, OUTPUT); // Connect to Stepper Step pin (GPIO4/D4)
   
   // Initialize new pins for buttons and ultrasonic sensor with labels
-  pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Connect Button 1 (GPIO15/D15)
-  pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Connect Button 2 (GPIO16/D16)
-  pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO2/D2)
+  pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Connect Button 1 (GPIO13/D13)
+  pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Connect Button 2 (GPIO14/D14)
+  pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO27/D27)
   pinMode(ULTRASONIC_ECHO_PIN, INPUT); // Connect Ultrasonic Echo (GPIO17/D17)
   
   // Initialize WiFi in AP mode.
