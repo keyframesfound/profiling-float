@@ -24,10 +24,10 @@ const char* password = "DT1234dt";
 WebServer server(80);  // Using ESP32 WebServer
 
 // Sensor iteration variables
-String iterationData = "";
-float pressures[60];      // changed from 10 to 60 for 1 minute aggregation
-float temperatures[60];   // changed from 10 to 60 for 1 minute aggregation
+float pressures[120];      // changed size: now stores 120 iterations
+float temperatures[120];   // changed size: now stores 120 iterations
 int sensorIdx = 0;
+int iterationCount = 0;    // new counter to track total iterations
 
 // Stepper motor pins and settings with connection labels for ESP32
 const int dirPin  = 5;  // Connect Stepper Direction to GPIO5
@@ -41,9 +41,16 @@ int motorSpeed = 600;  // Delay in microseconds between steps
 #define ULTRASONIC_ECHO_PIN 0     // Connect Ultrasonic Echo to GPIO0 (use caution on ESP32)
 const float ULTRASONIC_DIST_THRESHOLD = 10.0; // Threshold in cm
 
-// Web endpoint handler for sensor data (/data)
+// Updated web endpoint handler for /data to always display the latest readings
 void handleData() {
-  server.send(200, "text/plain", iterationData);
+  int count = iterationCount < 120 ? iterationCount : 120;
+  String data = "";
+  // Starting at sensorIdx yields the oldest reading in the circular buffer.
+  for (int i = 0; i < count; i++) {
+    int idx = (sensorIdx + i) % 120;
+    data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
+  }
+  server.send(200, "text/plain", data);
 }
 
 // New function to measure distance with the ultrasonic sensor
@@ -148,14 +155,9 @@ void loop() {
   sensor.read();
   pressures[sensorIdx] = sensor.pressure();
   temperatures[sensorIdx] = sensor.temperature();
-  sensorIdx++;
-  if (sensorIdx >= 60) { // changed condition: now aggregates readings for 1 minute
-    iterationData = "";
-    for (int i = 0; i < 60; i++) {
-      iterationData += String(pressures[i]) + "," + String(temperatures[i]) + "\n";
-    }
-    sensorIdx = 0;
-  }
+  
+  sensorIdx = (sensorIdx + 1) % 120;  // update the circular buffer index
+  iterationCount++;                  // track total iterations
   
   // Handle incoming client requests.
   server.handleClient();
