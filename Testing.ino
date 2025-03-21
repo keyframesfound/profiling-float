@@ -6,6 +6,8 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include <ArduinoOTA.h>
+#include <Update.h>
 
 // Define sensor I2C pins for ESP32 (cables connect as labeled)
 #ifndef D5
@@ -249,9 +251,58 @@ void setup() {
   Serial.print("Access Point started. IP: ");
   Serial.println(WiFi.softAPIP());
   
+  // ArduinoOTA setup
+  ArduinoOTA.onStart([]() {
+    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
+    Serial.println("Start updating " + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nUpdate Complete");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress * 100) / total);
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("OTA Ready");
+  
   // Define web server endpoints.
   server.on("/data", handleData);
   server.on("/control", handleControl);
+  
+  // Add OTA HTTP update endpoint using the same server instance.
+  server.on("/update", HTTP_POST, []() {
+    server.sendHeader("Connection", "close");
+    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
+  }, []() {
+    HTTPUpload &upload = server.upload();
+    if(upload.status == UPLOAD_FILE_START){
+      Serial.setDebugOutput(true);
+      Serial.printf("Update Start: %s\n", upload.filename.c_str());
+      if(!Update.begin(UPDATE_SIZE_UNKNOWN)){
+        Update.printError(Serial);
+      }
+    } else if(upload.status == UPLOAD_FILE_WRITE){
+      if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
+        Update.printError(Serial);
+      }
+    } else if(upload.status == UPLOAD_FILE_END){
+      if(Update.end(true)){
+        Serial.printf("Update Success: %u bytes\nRebooting...\n", upload.totalSize);
+      } else {
+        Update.printError(Serial);
+      }
+      Serial.setDebugOutput(false);
+    }
+  });
+  
   server.begin();
 
   // Create mutex and queue
@@ -294,6 +345,7 @@ void setup() {
 }
 
 void loop() {
-  // Empty loop as tasks handle everything
+  ArduinoOTA.handle();      // Check for OTA updates via ArduinoOTA
+  // Other tasks are handled by FreeRTOS tasks.
   vTaskDelay(pdMS_TO_TICKS(1000));
 }
