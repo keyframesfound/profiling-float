@@ -103,7 +103,9 @@ float getUltrasoundDistance() {
     delayMicroseconds(10);
     digitalWrite(ULTRASONIC_TRIGGER_PIN, LOW);
     duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH);
-    return duration * 0.034 / 2; // Convert to cm
+    float distance = duration * 0.034 / 2;
+    Serial.printf("Ultrasonic Reading - Duration: %ld, Distance: %.2f cm\n", duration, distance);
+    return distance;
 }
 
 // Modified runStepperSequence to add 45-second delay after bottom detection
@@ -217,6 +219,14 @@ void runStepper(int steps, bool clockwise) {
 void setup() {
   Serial.begin(115200);
   delay(1000);
+  
+  // Test serial communication
+  Serial.println("Serial communication test...");
+  Serial.println("If you can read this, serial RX/TX is working!");
+  
+  // Verify ultrasonic pins
+  Serial.printf("Ultrasonic Sensor Config - Trigger: GPIO%d, Echo: GPIO%d\n", 
+               ULTRASONIC_TRIGGER_PIN, ULTRASONIC_ECHO_PIN);
   
   // Initialize I2C with custom pins (Sensor: SDA on GPIO21, SCL on GPIO22)
   Wire.begin(CUSTOM_SDA_PIN, CUSTOM_SCL_PIN);
