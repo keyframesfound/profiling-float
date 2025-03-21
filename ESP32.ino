@@ -37,8 +37,8 @@ int motorSpeed = 600;  // Delay in microseconds between steps
 // New definitions for buttons and ultrasonic sensor with connection labels
 #define BUTTON_PIN_1 13    // Changed from GPIO15 to GPIO13 to avoid strapping pin
 #define BUTTON_PIN_2 14    // Changed from GPIO16 (unavailable) to GPIO14 
-#define ULTRASONIC_TRIGGER_PIN 1  // TX (GPIO1)
-#define ULTRASONIC_ECHO_PIN 3     // RX (GPIO3)
+#define ULTRASONIC_TRIGGER_PIN 25  // Connect Ultrasonic TX to GPIO25/D25
+#define ULTRASONIC_ECHO_PIN 26     // Connect Ultrasonic RX to GPIO26/D26
 const float ULTRASONIC_DIST_THRESHOLD = 10.0; // Threshold in cm
 
 // Mutex for protecting shared resources
@@ -110,7 +110,7 @@ float getUltrasoundDistance() {
 void runStepperSequence() {
     // Spin clockwise until BUTTON_PIN_1 is pressed
     digitalWrite(dirPin, LOW);  // clockwise
-    while(digitalRead(BUTTON_PIN_1) != HIGH) { // Changed from LOW
+    while(digitalRead(BUTTON_PIN_1) == LOW) {  // Changed logic - wait for LOW (button press)
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
@@ -118,15 +118,15 @@ void runStepperSequence() {
         taskYIELD(); // allow other tasks to run
     }
     // Wait until the ultrasound sensor detects the float (distance <= threshold)
-    while(getUltrasoundDistance() > ULTRASONIC_DIST_THRESHOLD) {
+    while(getUltrasoundDistance() > ULTRASONIC_DIST_THRESHOLD) {  
         delay(10);
         taskYIELD();
     }
     // 45-second delay after hitting the bottom
-    delay(45000);
+    delay(5000);
     // Spin anticlockwise until BUTTON_PIN_2 is pressed
     digitalWrite(dirPin, HIGH); // anticlockwise
-    while(digitalRead(BUTTON_PIN_2) != HIGH) { // Changed from LOW
+    while(digitalRead(BUTTON_PIN_2) == LOW) {  // Changed logic - wait for LOW (button press)
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
@@ -215,7 +215,7 @@ void runStepper(int steps, bool clockwise) {
 }
 
 void setup() {
-    // Remove Serial.begin() since we're using RX/TX for ultrasonic
+    Serial.begin(115200);  // Re-enable Serial
     delay(1000);
     
     // Initialize ultrasonic sensor pins first
@@ -244,8 +244,8 @@ void setup() {
     pinMode(stepPin, OUTPUT); // Connect to Stepper Step pin (GPIO4/D4)
     
     // Initialize new pins for buttons and ultrasonic sensor with labels
-    pinMode(BUTTON_PIN_1, INPUT); // Changed from INPUT_PULLUP
-    pinMode(BUTTON_PIN_2, INPUT); // Changed from INPUT_PULLUP
+    pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Changed from INPUT
+    pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Changed from INPUT
     pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO27/D27)
     pinMode(ULTRASONIC_ECHO_PIN, INPUT); // Connect Ultrasonic Echo (GPIO17/D17)
     
@@ -280,32 +280,6 @@ void setup() {
     // Define web server endpoints.
     server.on("/data", handleData);
     server.on("/control", handleControl);
-    
-    // Add OTA HTTP update endpoint using the same server instance.
-    server.on("/update", HTTP_POST, []() {
-      server.sendHeader("Connection", "close");
-      server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
-    }, []() {
-      HTTPUpload &upload = server.upload();
-      if(upload.status == UPLOAD_FILE_START){
-        Serial.setDebugOutput(true);
-        Serial.printf("Update Start: %s\n", upload.filename.c_str());
-        if(!Update.begin(UPDATE_SIZE_UNKNOWN)){
-          Update.printError(Serial);
-        }
-      } else if(upload.status == UPLOAD_FILE_WRITE){
-        if(Update.write(upload.buf, upload.currentSize) != upload.currentSize){
-          Update.printError(Serial);
-        }
-      } else if(upload.status == UPLOAD_FILE_END){
-        if(Update.end(true)){
-          Serial.printf("Update Success: %u bytes\nRebooting...\n", upload.totalSize);
-        } else {
-          Update.printError(Serial);
-        }
-        Serial.setDebugOutput(false);
-      }
-    });
     
     server.begin();
 
