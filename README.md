@@ -5,20 +5,20 @@ This project reads sensor data using an MS5837 sensor and aggregates the values 
 ## Hardware Connections
 
 - **I2C Sensor (MS5837)**
-  - **SDA (Sensor SDA):** Connect to D5, which is GPIO14 on the ESP32.
-  - **SCL (Sensor SCL):** Connect to D6, which is GPIO12 on the ESP32.
+  - **SDA (Sensor SDA):** Connect to GPIO21 (D21) on the ESP32 WROOM 32UE.
+  - **SCL (Sensor SCL):** Connect to GPIO22 (D22) on the ESP32 WROOM 32UE.
 
 - **Stepper Motor**
-  - **Direction Pin:** Connect to GPIO5 (dirPin).
-  - **Step Pin:** Connect to GPIO4 (stepPin).
+  - **Direction Pin:** Connect to GPIO5 (D5).
+  - **Step Pin:** Connect to GPIO4 (D4).
 
 - **Buttons**
-  - **Button 1:** Connect to GPIO15 (BUTTON_PIN_1).
-  - **Button 2:** Connect to GPIO16 (BUTTON_PIN_2).
+  - **Button 1:** Connect to GPIO15 (D15).
+  - **Button 2:** Connect to GPIO16 (D16).
 
 - **Ultrasonic Sensor**
-  - **Trigger:** Connect to GPIO2 (ULTRASONIC_TRIGGER_PIN).
-  - **Echo:** Connect to GPIO0 (ULTRASONIC_ECHO_PIN) – use caution with this pin on the ESP32.
+  - **Trigger:** Connect to GPIO2 (D2).
+  - **Echo:** Connect to GPIO17 (D17).
 
 ## WiFi Settings
 
@@ -35,3 +35,12 @@ This project reads sensor data using an MS5837 sensor and aggregates the values 
   - Waits until the ultrasonic sensor detects the float (distance ≤ 10 cm).
   - Waits an additional 45 seconds.
   - Spins anticlockwise until Button 2 is pressed.
+- **Over-the-Air Updates:** Supports OTA firmware updates via Arduino OTA protocol  (`/update`)
+## Additional Features
+
+- **Over-the-Air Updates:** Supports OTA firmware updates via Arduino OTA protocol
+- **Task Management:** Uses FreeRTOS for concurrent operation:
+  - Sensor readings run on Core 0
+  - Web server runs on Core 0
+  - Motor control runs on Core 1 (highest priority)
+- **Thread Safety:** Uses mutexes and queues to protect shared resources

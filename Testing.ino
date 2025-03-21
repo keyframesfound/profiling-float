@@ -10,14 +10,8 @@
 #include <Update.h>
 
 // Define sensor I2C pins for ESP32 (cables connect as labeled)
-#ifndef D5
-#define D5 14 // Connect sensor SDA to GPIO14 on ESP32
-#endif
-#ifndef D6
-#define D6 12 // Connect sensor SCL to GPIO12 on ESP32
-#endif
-#define CUSTOM_SDA_PIN D5 // Sensor SDA (GPIO14)
-#define CUSTOM_SCL_PIN D6 // Sensor SCL (GPIO12)
+#define CUSTOM_SDA_PIN 21 // Sensor SDA (GPIO21/D21)
+#define CUSTOM_SCL_PIN 22 // Sensor SCL (GPIO22/D22)
 
 // Create sensor instance
 MS5837 sensor;
@@ -36,15 +30,15 @@ int sensorIdx = 0;
 int iterationCount = 0;    // new counter to track total iterations
 
 // Stepper motor pins and settings with connection labels for ESP32
-const int dirPin  = 5;  // Connect Stepper Direction to GPIO5
-const int stepPin = 4;  // Connect Stepper Step to GPIO4
+const int dirPin  = 5;  // Connect Stepper Direction to GPIO5/D5
+const int stepPin = 4;  // Connect Stepper Step to GPIO4/D4
 int motorSpeed = 600;  // Delay in microseconds between steps
 
 // New definitions for buttons and ultrasonic sensor with connection labels
-#define BUTTON_PIN_1 15    // Connect Button 1 to GPIO15
-#define BUTTON_PIN_2 16    // Connect Button 2 to GPIO16
-#define ULTRASONIC_TRIGGER_PIN 2  // Connect Ultrasonic Trigger to GPIO2
-#define ULTRASONIC_ECHO_PIN 0     // Connect Ultrasonic Echo to GPIO0 (use caution on ESP32)
+#define BUTTON_PIN_1 15    // Connect Button 1 to GPIO15/D15
+#define BUTTON_PIN_2 16    // Connect Button 2 to GPIO16/D16
+#define ULTRASONIC_TRIGGER_PIN 2  // Connect Ultrasonic Trigger to GPIO2/D2
+#define ULTRASONIC_ECHO_PIN 17    // Updated: Use GPIO17 instead of GPIO0
 const float ULTRASONIC_DIST_THRESHOLD = 10.0; // Threshold in cm
 
 // Mutex for protecting shared resources
@@ -224,7 +218,7 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
   
-  // Initialize I2C with custom pins (Sensor: SDA on GPIO14, SCL on GPIO12)
+  // Initialize I2C with custom pins (Sensor: SDA on GPIO21, SCL on GPIO22)
   Wire.begin(CUSTOM_SDA_PIN, CUSTOM_SCL_PIN);
 
   // Initialize the sensor
@@ -236,14 +230,14 @@ void setup() {
   Serial.println("MS5837 sensor initialized!");
   
   // Initialize stepper motor pins with connection labels
-  pinMode(dirPin, OUTPUT);  // Connect to Stepper Direction pin (GPIO5)
-  pinMode(stepPin, OUTPUT); // Connect to Stepper Step pin (GPIO4)
+  pinMode(dirPin, OUTPUT);  // Connect to Stepper Direction pin (GPIO5/D5)
+  pinMode(stepPin, OUTPUT); // Connect to Stepper Step pin (GPIO4/D4)
   
   // Initialize new pins for buttons and ultrasonic sensor with labels
-  pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Connect Button 1 (GPIO15)
-  pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Connect Button 2 (GPIO16)
-  pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO2)
-  pinMode(ULTRASONIC_ECHO_PIN, INPUT); // Connect Ultrasonic Echo (GPIO0)
+  pinMode(BUTTON_PIN_1, INPUT_PULLUP); // Connect Button 1 (GPIO15/D15)
+  pinMode(BUTTON_PIN_2, INPUT_PULLUP); // Connect Button 2 (GPIO16/D16)
+  pinMode(ULTRASONIC_TRIGGER_PIN, OUTPUT); // Connect Ultrasonic Trigger (GPIO2/D2)
+  pinMode(ULTRASONIC_ECHO_PIN, INPUT); // Connect Ultrasonic Echo (GPIO17/D17)
   
   // Initialize WiFi in AP mode.
   WiFi.mode(WIFI_AP);
