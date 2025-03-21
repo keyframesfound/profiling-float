@@ -15,20 +15,20 @@ An ESP32-based automated profiling float system for water measurements using MS5
 ## Pin Connections
 
 ### Sensor Connections
-- MS5837 SDA → GPIO21 (D21)
-- MS5837 SCL → GPIO22 (D22)
+- MS5837 SDA → GPIO21 (D21) [GREEN cable]
+- MS5837 SCL → GPIO22 (D22) [WHITE cable]
 
 ### Stepper Motor
-- Direction Pin → GPIO5 (D5)
-- Step Pin → GPIO4 (D4)
+- Direction Pin → GPIO5 (D5) (Blue)
+- Step Pin → GPIO4 (D4) (Green)
 
 ### Buttons/Switches
 - Bottom Limit Switch → GPIO13 (D13)
 - Top Limit Switch → GPIO14 (D14)
 
 ### Ultrasonic Sensor
-- Trigger Pin → GPIO27 (D27)
-- Echo Pin → GPIO17 (D17)
+- RX Pin → GPIO27 (D27)
+- TX Pin → GPIO17 (D17)
 
 ## WiFi Setup
 
