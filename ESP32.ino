@@ -102,8 +102,11 @@ float getUltrasoundDistance() {
     digitalWrite(ULTRASONIC_TRIGGER_PIN, HIGH);
     delayMicroseconds(10);
     digitalWrite(ULTRASONIC_TRIGGER_PIN, LOW);
-    duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH);
-    return duration * 0.034 / 2;
+    duration = pulseIn(ULTRASONIC_ECHO_PIN, HIGH, 23200); // add timeout
+    if (duration > 0) {
+        return duration * 0.034 / 2;
+    }
+    return -1; // indicates an invalid reading
 }
 
 // Modified runStepperSequence to add 45-second delay after bottom detection
