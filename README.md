@@ -26,13 +26,6 @@ An ESP32-based automated profiling float system for water measurements using MS5
 - Bottom Limit Switch → GPIO13 (D13) (Button TOP)
 - Top Limit Switch → GPIO14 (D14) (Button Bottom)
 
-### Ultrasonic Sensor
-- TX → GPIO25 (D25) [Connect board's TX pin here]
-- RX → GPIO26 (D26) [Connect board's RX pin here]
-- VCC → 5V
-- GND → GND
-
-Note: The ultrasonic sensor's TX/RX pins are remapped to GPIO25/26 to avoid using the ESP32's hardware serial pins.
 
 ## WiFi Setup
 
@@ -45,7 +38,6 @@ The device creates an Access Point with:
 
 - `/data` - View pressure and temperature readings
 - `/control` - Control stepper motor sequence
-- `/update` - OTA firmware updates
 
 ## Operation
 
@@ -70,3 +62,4 @@ Built using Arduino IDE or PlatformIO. Required libraries:
 ## OTA Updates
 
 Supports both ArduinoOTA and web-based OTA updates for easy firmware deployment.
+Can use WIFI to flash onto the ESP32 through connecting to it's WIFI

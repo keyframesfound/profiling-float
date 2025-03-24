@@ -194,6 +194,54 @@ void runStepper(int steps, bool clockwise) {
   }
 }
 
+// New depth hold task to maintain depth at 0.3m within ±0.02m tolerance.
+void depthHoldTask(void *parameter) {
+  const float targetDepth = 0.3;      // Target depth in meters.
+  const float tolerance = 0.02;       // Tolerance of ±2cm.
+  const int controlSteps = 100;       // Fixed number of steps for small adjustment (tunable).
+
+  while(1) {
+    float lastPressure = 0;
+    // Retrieve the most recent pressure reading from the circular buffer.
+    if(xSemaphoreTake(dataLock, portMAX_DELAY)) {
+      int idx = (sensorIdx + 119) % 120;  // Last recorded index.
+      lastPressure = pressures[idx];
+      xSemaphoreGive(dataLock);
+    }
+    // Convert pressure (mbar) to depth (m) using:
+    // depth = (pressure - atmospheric_pressure) * 100 / (density * gravity)
+    float currentDepth = (lastPressure - 1013.25) * 100.0 / (997.0 * 9.81);
+    
+    float error = targetDepth - currentDepth;
+    
+    if(fabs(error) > tolerance) {
+      // Check if motor is available.
+      if(xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
+        if(!motorBusy) {
+          motorBusy = true;
+          xSemaphoreGive(motorStatusLock);
+          
+          if(error > 0) {
+            // Too shallow: lower the device (assume clockwise lowers).
+            runStepper(controlSteps, true);
+          } else {
+            // Too deep: raise the device.
+            runStepper(controlSteps, false);
+          }
+          
+          if(xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
+            motorBusy = false;
+            xSemaphoreGive(motorStatusLock);
+          }
+        } else {
+          xSemaphoreGive(motorStatusLock);
+        }
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(2000)); // Check depth every 2 seconds.
+  }
+}
+
 void setup() {
     Serial.begin(115200);  // Re-enable Serial
     delay(1000);
@@ -288,6 +336,17 @@ void setup() {
       NULL,
       3,  // Highest priority
       &motorTaskHandle,
+      1  // Run on Core 1
+    );
+    
+    // Create depth hold task on Core 1 with a low priority
+    xTaskCreatePinnedToCore(
+      depthHoldTask,
+      "DepthHoldTask",
+      4096,
+      NULL,
+      1,
+      NULL,
       1  // Run on Core 1
     );
 }
