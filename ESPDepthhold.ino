@@ -23,11 +23,14 @@ const char* password = "DT1234dt";
 // Create server instance on port 80
 WebServer server(80);  // Using ESP32 WebServer
 
+#define BUFFER_SIZE       120
+#define BOTTOM_DELAY_MS   45000     // 45-second delay
+
 // Sensor iteration variables
-float pressures[120];      // changed size: now stores 120 iterations
-float temperatures[120];   // changed size: now stores 120 iterations
+float pressures[BUFFER_SIZE];      // using BUFFER_SIZE constant
+float temperatures[BUFFER_SIZE];   // using BUFFER_SIZE constant
 int sensorIdx = 0;
-int iterationCount = 0;    // new counter to track total iterations
+int iterationCount = 0;            // counter for total iterations
 
 // Stepper motor pins and settings with connection labels for ESP32
 const int dirPin  = 5;  // Connect Stepper Direction to GPIO5/D5
@@ -59,7 +62,7 @@ void sensorTask(void *parameter) {
     if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
       pressures[sensorIdx] = sensor.pressure();
       temperatures[sensorIdx] = sensor.temperature();
-      sensorIdx = (sensorIdx + 1) % 120;
+      sensorIdx = (sensorIdx + 1) % BUFFER_SIZE;
       iterationCount++;
       xSemaphoreGive(dataLock);
     }
@@ -79,11 +82,11 @@ void webTask(void *parameter) {
 // Updated web endpoint handler for /data to always display the latest readings
 void handleData() {
   if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
-    int count = iterationCount < 120 ? iterationCount : 120;
+    int count = iterationCount < BUFFER_SIZE ? iterationCount : BUFFER_SIZE;
     String data = "";
     // Starting at sensorIdx yields the oldest reading in the circular buffer.
     for (int i = 0; i < count; i++) {
-      int idx = (sensorIdx + i) % 120;
+      int idx = (sensorIdx + i) % BUFFER_SIZE;
       data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
     }
     xSemaphoreGive(dataLock);
@@ -91,11 +94,20 @@ void handleData() {
   }
 }
 
+// Simple debounce helper (tunable delay)
+bool debounceRead(int pin, int delayMs = 50) {
+    if(digitalRead(pin) == LOW) {
+      delay(delayMs);
+      return (digitalRead(pin) == LOW);
+    }
+    return false;
+}
+
 // Modified runStepperSequence to add 45-second delay after bottom detection
 void runStepperSequence() {
-    // Spin clockwise until BUTTON_PIN_1 is pressed
+    // Spin clockwise until BUTTON_PIN_1 is pressed with debounce check
     digitalWrite(dirPin, LOW);  // clockwise
-    while(digitalRead(BUTTON_PIN_1) == LOW) {  // Changed logic - wait for LOW (button press)
+    while(!debounceRead(BUTTON_PIN_1)) {  // wait until button is confirmed pressed
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
@@ -103,10 +115,10 @@ void runStepperSequence() {
         taskYIELD(); // allow other tasks to run
     }
     // 45-second delay after hitting the bottom
-    delay(5000);
-    // Spin anticlockwise until BUTTON_PIN_2 is pressed
+    delay(BOTTOM_DELAY_MS);
+    // Spin anticlockwise until BUTTON_PIN_2 is pressed with debounce check
     digitalWrite(dirPin, HIGH); // anticlockwise
-    while(digitalRead(BUTTON_PIN_2) == LOW) {  // Changed logic - wait for LOW (button press)
+    while(!debounceRead(BUTTON_PIN_2)) {  // wait until button is confirmed pressed
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
@@ -204,7 +216,7 @@ void depthHoldTask(void *parameter) {
     float lastPressure = 0;
     // Retrieve the most recent pressure reading from the circular buffer.
     if(xSemaphoreTake(dataLock, portMAX_DELAY)) {
-      int idx = (sensorIdx + 119) % 120;  // Last recorded index.
+      int idx = (sensorIdx + 119) % BUFFER_SIZE;  // Last recorded index.
       lastPressure = pressures[idx];
       xSemaphoreGive(dataLock);
     }
