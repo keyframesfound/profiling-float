@@ -206,35 +206,31 @@ void runStepper(int steps, bool clockwise) {
   }
 }
 
-// Modified depthHoldTask to implement sink, hold for 45s, then ascend.
+// Suggested improvements in depthHoldTask:
 void depthHoldTask(void *parameter) {
   const float targetDepth = 0.3;   // Target depth in meters.
   const float tolerance = 0.02;    // Tolerance in meters.
   float lastPressure = 0, currentDepth = 0;
   motorBusy = true;
 
-  while(1) {
-    float lastPressure = 0;
-    // Retrieve the most recent pressure reading from the circular buffer.
-    if(xSemaphoreTake(dataLock, portMAX_DELAY)) {
+  // Sink phase: descend until reached target depth or bottom limit (using debounceRead).
+  while (1) {
+    if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
       int idx = (sensorIdx + 119) % BUFFER_SIZE;  // Last recorded index.
       lastPressure = pressures[idx];
       xSemaphoreGive(dataLock);
     }
     currentDepth = (lastPressure - 1013.25) * 100.0 / (997.0 * 9.81);
-    // If the bottom limit button is pressed, stop descending.
-    if (digitalRead(BUTTON_PIN_1) == LOW) break;
-    // Exit if desired depth reached.
+    if (debounceRead(BUTTON_PIN_1)) break;  // bottom limit reached.
     if (currentDepth >= targetDepth - tolerance) break;
-    // Sink: set direction downward (LOW) and step.
     digitalWrite(dirPin, LOW);
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(motorSpeed);
     digitalWrite(stepPin, LOW);
     delayMicroseconds(motorSpeed);
-    yield();
+    vTaskDelay(pdMS_TO_TICKS(10)); // allow other tasks to run.
   }
-
+  
   // Hold phase: actively maintain target depth for 45 seconds.
   unsigned long holdStart = millis();
   while (millis() - holdStart < 45000) {
