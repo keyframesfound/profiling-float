@@ -206,11 +206,12 @@ void runStepper(int steps, bool clockwise) {
   }
 }
 
-// New depth hold task to maintain depth at 0.3m within ±0.02m tolerance.
+// Modified depthHoldTask to implement sink, hold for 45s, then ascend.
 void depthHoldTask(void *parameter) {
-  const float targetDepth = 0.3;      // Target depth in meters.
-  const float tolerance = 0.02;       // Tolerance of ±2cm.
-  const int controlSteps = 100;       // Fixed number of steps for small adjustment (tunable).
+  const float targetDepth = 0.3;   // Target depth in meters.
+  const float tolerance = 0.02;    // Tolerance in meters.
+  float lastPressure = 0, currentDepth = 0;
+  motorBusy = true;
 
   while(1) {
     float lastPressure = 0;
@@ -220,38 +221,62 @@ void depthHoldTask(void *parameter) {
       lastPressure = pressures[idx];
       xSemaphoreGive(dataLock);
     }
-    // Convert pressure (mbar) to depth (m) using:
-    // depth = (pressure - atmospheric_pressure) * 100 / (density * gravity)
-    float currentDepth = (lastPressure - 1013.25) * 100.0 / (997.0 * 9.81);
-    
-    float error = targetDepth - currentDepth;
-    
-    if(fabs(error) > tolerance) {
-      // Check if motor is available.
-      if(xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
-        if(!motorBusy) {
-          motorBusy = true;
-          xSemaphoreGive(motorStatusLock);
-          
-          if(error > 0) {
-            // Too shallow: lower the device (assume clockwise lowers).
-            runStepper(controlSteps, true);
-          } else {
-            // Too deep: raise the device.
-            runStepper(controlSteps, false);
-          }
-          
-          if(xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
-            motorBusy = false;
-            xSemaphoreGive(motorStatusLock);
-          }
-        } else {
-          xSemaphoreGive(motorStatusLock);
-        }
-      }
-    }
-    vTaskDelay(pdMS_TO_TICKS(2000)); // Check depth every 2 seconds.
+    currentDepth = (lastPressure - 1013.25) * 100.0 / (997.0 * 9.81);
+    // If the bottom limit button is pressed, stop descending.
+    if (digitalRead(BUTTON_PIN_1) == LOW) break;
+    // Exit if desired depth reached.
+    if (currentDepth >= targetDepth - tolerance) break;
+    // Sink: set direction downward (LOW) and step.
+    digitalWrite(dirPin, LOW);
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(motorSpeed);
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(motorSpeed);
+    yield();
   }
+
+  // Hold phase: actively maintain target depth for 45 seconds.
+  unsigned long holdStart = millis();
+  while (millis() - holdStart < 45000) {
+    if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
+      int idx = (sensorIdx + 119) % 120;
+      lastPressure = pressures[idx];
+      xSemaphoreGive(dataLock);
+    }
+    currentDepth = (lastPressure - 1013.25) * 100.0 / (997.0 * 9.81);
+    float error = targetDepth - currentDepth;
+    // If too shallow, sink a little.
+    if (error > tolerance) {
+      digitalWrite(dirPin, LOW);
+      digitalWrite(stepPin, HIGH);
+      delayMicroseconds(motorSpeed);
+      digitalWrite(stepPin, LOW);
+      delayMicroseconds(motorSpeed);
+    }
+    // If too deep, ascend a little.
+    else if (error < -tolerance) {
+      digitalWrite(dirPin, HIGH);
+      digitalWrite(stepPin, HIGH);
+      delayMicroseconds(motorSpeed);
+      digitalWrite(stepPin, LOW);
+      delayMicroseconds(motorSpeed);
+    }
+    // Abort adjustments if any limit button is triggered.
+    if (digitalRead(BUTTON_PIN_1) == LOW || digitalRead(BUTTON_PIN_2) == LOW) break;
+    yield();
+  }
+
+  // Ascend phase: raise float until top limit button is triggered.
+  while (digitalRead(BUTTON_PIN_2) != LOW) {
+    digitalWrite(dirPin, HIGH);
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(motorSpeed);
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(motorSpeed);
+    yield();
+  }
+  motorBusy = false;
+  vTaskDelete(NULL); // End task once complete.
 }
 
 void setup() {
