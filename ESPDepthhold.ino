@@ -24,7 +24,7 @@ const char* password = "DT1234dt";
 WebServer server(80);  // Using ESP32 WebServer
 
 #define BUFFER_SIZE       120
-#define BOTTOM_DELAY_MS   45000     // 45-second delay
+#define BOTTOM_DELAY_MS   5000     // 45-second delay
 
 // Sensor iteration variables
 float pressures[BUFFER_SIZE];      // using BUFFER_SIZE constant
