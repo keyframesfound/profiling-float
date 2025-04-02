@@ -53,42 +53,85 @@ def graph():
             const lines = document.getElementById('dataInput').value.split('\\n').filter(line => line.trim() !== '');
             const pressures = [];
             const temperatures = [];
-            lines.forEach(line => {
+            const timeLabels = [];
+            
+            lines.forEach((line, index) => {
                 const parts = line.split(',');
                 if(parts.length >= 2) {
+                    const seconds = index;
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = seconds % 60;
+                    timeLabels.push(`${minutes}:${remainingSeconds.toString().padStart(2, '0')}`);
                     pressures.push(parseFloat(parts[0]));
                     temperatures.push(parseFloat(parts[1]));
                 }
             });
+
             const ctx1 = document.getElementById('graph1').getContext('2d');
             const ctx2 = document.getElementById('graph2').getContext('2d');
+            
             // Graph for Pressure
             new Chart(ctx1, {
                 type: 'line',
                 data: {
-                    labels: pressures.map((_, index) => index + 1),
+                    labels: timeLabels,
                     datasets: [{
-                        label: 'Pressure',
+                        label: 'Pressure (dbar)',
                         data: pressures,
                         borderColor: 'rgba(255,99,132,1)',
-                        fill: false
+                        fill: false,
+                        tension: 0.1
                     }]
                 },
-                options: { responsive: true }
+                options: { 
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (MM:SS)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Pressure (dbar)'
+                            }
+                        }
+                    }
+                }
             });
+            
             // Graph for Temperature
             new Chart(ctx2, {
                 type: 'line',
                 data: {
-                    labels: temperatures.map((_, index) => index + 1),
+                    labels: timeLabels,
                     datasets: [{
-                        label: 'Temperature',
+                        label: 'Temperature (°C)',
                         data: temperatures,
                         borderColor: 'rgba(54,162,235,1)',
-                        fill: false
+                        fill: false,
+                        tension: 0.1
                     }]
                 },
-                options: { responsive: true }
+                options: { 
+                    responsive: true,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Time (MM:SS)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Temperature (°C)'
+                            }
+                        }
+                    }
+                }
             });
         }
         </script>

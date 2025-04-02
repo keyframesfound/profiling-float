@@ -71,6 +71,13 @@ float pressureToDepth(float pressure) {
     return (pressure - atmosphericPressure) / (997.0 * 9.81);
 }
 
+// Add after other global variables
+volatile bool isRecordingSequence = false;
+float sequencePressures[600];    // Store 10 minutes worth of data (600 seconds)
+float sequenceTemperatures[600];
+int sequenceDataIndex = 0;
+SemaphoreHandle_t sequenceDataLock = NULL;
+
 // Sensor reading task
 void sensorTask(void *parameter) {
   while(1) {
@@ -82,6 +89,16 @@ void sensorTask(void *parameter) {
       sensorIdx = (sensorIdx + 1) % 120;
       iterationCount++;
       xSemaphoreGive(dataLock);
+      
+      // If recording sequence, store in sequence buffer
+      if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
+        if (isRecordingSequence && sequenceDataIndex < 600) {
+          sequencePressures[sequenceDataIndex] = sensor.pressure();
+          sequenceTemperatures[sequenceDataIndex] = sensor.temperature();
+          sequenceDataIndex++;
+        }
+        xSemaphoreGive(sequenceDataLock);
+      }
     }
     
     vTaskDelay(pdMS_TO_TICKS(1000)); // 1 second delay
@@ -98,15 +115,26 @@ void webTask(void *parameter) {
 
 // Updated web endpoint handler for /data to always display the latest readings
 void handleData() {
-  if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
-    int count = iterationCount < 120 ? iterationCount : 120;
+  if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
     String data = "";
-    // Starting at sensorIdx yields the oldest reading in the circular buffer.
-    for (int i = 0; i < count; i++) {
-      int idx = (sensorIdx + i) % 120;
-      data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
+    
+    // If sequence recording exists, return sequence data
+    if (sequenceDataIndex > 0) {
+      for (int i = 0; i < sequenceDataIndex; i++) {
+        data += String(sequencePressures[i]) + "," + String(sequenceTemperatures[i]) + "\n";
+      }
+    } else {
+      // Fall back to circular buffer if no sequence data
+      if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
+        int count = iterationCount < 120 ? iterationCount : 120;
+        for (int i = 0; i < count; i++) {
+          int idx = (sensorIdx + i) % 120;
+          data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
+        }
+        xSemaphoreGive(dataLock);
+      }
     }
-    xSemaphoreGive(dataLock);
+    xSemaphoreGive(sequenceDataLock);
     server.send(200, "text/plain", data);
   }
 }
@@ -147,6 +175,12 @@ void runDepthHoldSequence() {
     xSemaphoreGive(motorControlLock);
     taskYIELD();
   }
+  
+  // Stop recording when sequence is complete
+  if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
+    isRecordingSequence = false;
+    xSemaphoreGive(sequenceDataLock);
+  }
 }
 
 // Update motorTask
@@ -181,6 +215,13 @@ void handleControl() {
     }
     
     if (canStart) {
+      // Reset and start sequence recording
+      if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
+        sequenceDataIndex = 0;
+        isRecordingSequence = true;
+        xSemaphoreGive(sequenceDataLock);
+      }
+      
       bool command = true;
       xQueueSend(motorCommandQueue, &command, portMAX_DELAY);
       server.send(200, "text/html", 
@@ -348,6 +389,9 @@ void setup() {
     // Add this before creating tasks
     motorStatusLock = xSemaphoreCreateMutex();
     motorControlLock = xSemaphoreCreateMutex(); // Added mutex for motor control
+    
+    // Add after other mutex creations
+    sequenceDataLock = xSemaphoreCreateMutex();
     
     // Create tasks with different priorities
     xTaskCreatePinnedToCore(
