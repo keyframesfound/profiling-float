@@ -78,6 +78,9 @@ float sequenceTemperatures[600];
 int sequenceDataIndex = 0;
 SemaphoreHandle_t sequenceDataLock = NULL;
 
+// Add near other TaskHandle declarations at the top
+TaskHandle_t maintainDepthTaskHandle = NULL;
+
 // Sensor reading task
 void sensorTask(void *parameter) {
   while(1) {
@@ -141,46 +144,52 @@ void handleData() {
 
 // New function: runDepthHoldSequence replaces the previous two-phase sequence.
 void runDepthHoldSequence() {
-  // Phase 1: drive motor clockwise ("sucking in water") until within deadband
-  while (true) {
-    sensor.read();
-    float currentDepth = pressureToDepth(sensor.pressure());
-    float error = targetDepth - currentDepth;
-    if (fabs(error) < deadband)
-      break;
+    // Suspend PID control during sequence
+    vTaskSuspend(maintainDepthTaskHandle);
+
+    // Phase 1: drive motor clockwise ("sucking in water") until within deadband
+    while (true) {
+        sensor.read();
+        float currentDepth = pressureToDepth(sensor.pressure());
+        float error = targetDepth - currentDepth;
+        if (fabs(error) < deadband)
+            break;
+        xSemaphoreTake(motorControlLock, portMAX_DELAY);
+        digitalWrite(dirPin, LOW); // clockwise
+        digitalWrite(stepPin, HIGH);
+        delayMicroseconds(motorSpeed);
+        digitalWrite(stepPin, LOW);
+        delayMicroseconds(motorSpeed);
+        xSemaphoreGive(motorControlLock);
+        taskYIELD();
+    }
+    // Phase 2: hold state for 45 seconds (active depthhold)
+    unsigned long holdStart = millis();
+    while(millis() - holdStart < 45000) {
+        delay(100);
+    }
+    // Phase 3: run anticlockwise ("raising the float") until BUTTON_PIN_2 is pressed
     xSemaphoreTake(motorControlLock, portMAX_DELAY);
-      digitalWrite(dirPin, LOW); // clockwise
-      digitalWrite(stepPin, HIGH);
-      delayMicroseconds(motorSpeed);
-      digitalWrite(stepPin, LOW);
-      delayMicroseconds(motorSpeed);
-    xSemaphoreGive(motorControlLock);
-    taskYIELD();
-  }
-  // Phase 2: hold state for 45 seconds (active depthhold)
-  unsigned long holdStart = millis();
-  while(millis() - holdStart < 45000) {
-    delay(100);
-  }
-  // Phase 3: run anticlockwise ("raising the float") until BUTTON_PIN_2 is pressed
-  xSemaphoreTake(motorControlLock, portMAX_DELAY);
     digitalWrite(dirPin, HIGH); // anticlockwise
-  xSemaphoreGive(motorControlLock);
-  while(digitalRead(BUTTON_PIN_2) == HIGH) {
-    xSemaphoreTake(motorControlLock, portMAX_DELAY);
-      digitalWrite(stepPin, HIGH);
-      delayMicroseconds(motorSpeed);
-      digitalWrite(stepPin, LOW);
-      delayMicroseconds(motorSpeed);
     xSemaphoreGive(motorControlLock);
-    taskYIELD();
-  }
-  
-  // Stop recording when sequence is complete
-  if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
-    isRecordingSequence = false;
-    xSemaphoreGive(sequenceDataLock);
-  }
+    while(digitalRead(BUTTON_PIN_2) == HIGH) {
+        xSemaphoreTake(motorControlLock, portMAX_DELAY);
+        digitalWrite(stepPin, HIGH);
+        delayMicroseconds(motorSpeed);
+        digitalWrite(stepPin, LOW);
+        delayMicroseconds(motorSpeed);
+        xSemaphoreGive(motorControlLock);
+        taskYIELD();
+    }
+    
+    // Stop recording when sequence is complete
+    if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
+        isRecordingSequence = false;
+        xSemaphoreGive(sequenceDataLock);
+    }
+
+    // Resume PID control after sequence
+    vTaskResume(maintainDepthTaskHandle);
 }
 
 // Update motorTask
@@ -431,8 +440,8 @@ void setup() {
       4096,
       NULL,
       2,
-      NULL,
-      1  // Chooses appropriate core
+      &maintainDepthTaskHandle,  // Store the handle
+      0  // Run on Core 0 instead of 1
     );
 }
 
