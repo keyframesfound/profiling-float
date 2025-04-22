@@ -28,110 +28,56 @@ html_template = '''
 def home():
     return render_template_string(html_template)
 
-# New route for graph generation
+# Updated graph_template to show Depth (m) instead of pressure and display time in GMT+8.
 @app.route('/graph', methods=['GET'])
 def graph():
     graph_template = '''
     <!doctype html>
     <html>
     <head>
-        <title>Graph Generator</title>
+        <title>iEngineer</title>
         <!-- Changed to load Chart.js locally -->
         <script src="/static/js/chart.js"></script>
     </head>
     <body>
-        <h1>Graph Generator</h1>
-        <textarea id="dataInput" rows="10" cols="50" placeholder="Paste your comma separated values: pressure,temperature on each line"></textarea>
+        <h1>iEngineer</h1>
+        <p id="gmtTime"></p>
+        <textarea id="dataInput" rows="10" cols="50" placeholder="Paste your comma separated values: depth,temperature,GMT Time on each line"></textarea>
         <br>
         <button onclick="generateGraphs()">Generate Graphs</button>
         <div>
-            <canvas id="graph1" width="400" height="200"></canvas>
-            <canvas id="graph2" width="400" height="200"></canvas>
+            <canvas id="graphDepth" width="400" height="200"></canvas>
+            <canvas id="graphTemp" width="400" height="200"></canvas>
         </div>
         <script>
         function generateGraphs() {
             const lines = document.getElementById('dataInput').value.split('\\n').filter(line => line.trim() !== '');
-            const pressures = [];
+            let currentGMT = "";
+            const depths = [];
             const temperatures = [];
-            const timeLabels = [];
-            
-            lines.forEach((line, index) => {
+            const gmtTimes = [];
+            lines.forEach(line => {
                 const parts = line.split(',');
-                if(parts.length >= 2) {
-                    const seconds = index;
-                    const minutes = Math.floor(seconds / 60);
-                    const remainingSeconds = seconds % 60;
-                    timeLabels.push(`${minutes}:${remainingSeconds.toString().padStart(2, '0')}`);
-                    pressures.push(parseFloat(parts[0]));
+                if (parts[0].trim().startsWith("GMT Time:")) {
+                    currentGMT = parts[0].replace("GMT Time:", "").trim();
+                    document.getElementById('gmtTime').innerText = "Current GMT: " + currentGMT;
+                } else if(parts.length >= 3) {
+                    depths.push(parseFloat(parts[0]));
                     temperatures.push(parseFloat(parts[1]));
+                    gmtTimes.push(currentGMT);
                 }
             });
-
-            const ctx1 = document.getElementById('graph1').getContext('2d');
-            const ctx2 = document.getElementById('graph2').getContext('2d');
-            
-            // Graph for Pressure
-            new Chart(ctx1, {
+            // Graph for Depth (m) using GMT time as labels
+            new Chart(document.getElementById('graphDepth').getContext('2d'), {
                 type: 'line',
-                data: {
-                    labels: timeLabels,
-                    datasets: [{
-                        label: 'Pressure (dbar)',
-                        data: pressures,
-                        borderColor: 'rgba(255,99,132,1)',
-                        fill: false,
-                        tension: 0.1
-                    }]
-                },
-                options: { 
-                    responsive: true,
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Time (MM:SS)'
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Pressure (dbar)'
-                            }
-                        }
-                    }
-                }
+                data: { labels: gmtTimes, datasets: [{ label: 'Depth (m)', data: depths, borderColor: 'rgba(255,99,132,1)', fill: false, tension: 0.1 }] },
+                options: { responsive: true, scales: { x: { title: { display: true, text: 'GMT Time' } }, y: { title: { display: true, text: 'Depth (m)' } } } }
             });
-            
-            // Graph for Temperature
-            new Chart(ctx2, {
+            // Graph for Temperature (°C) using GMT time as labels
+            new Chart(document.getElementById('graphTemp').getContext('2d'), {
                 type: 'line',
-                data: {
-                    labels: timeLabels,
-                    datasets: [{
-                        label: 'Temperature (°C)',
-                        data: temperatures,
-                        borderColor: 'rgba(54,162,235,1)',
-                        fill: false,
-                        tension: 0.1
-                    }]
-                },
-                options: { 
-                    responsive: true,
-                    scales: {
-                        x: {
-                            title: {
-                                display: true,
-                                text: 'Time (MM:SS)'
-                            }
-                        },
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'Temperature (°C)'
-                            }
-                        }
-                    }
-                }
+                data: { labels: gmtTimes, datasets: [{ label: 'Temperature (°C)', data: temperatures, borderColor: 'rgba(54,162,235,1)', fill: false, tension: 0.1 }] },
+                options: { responsive: true, scales: { x: { title: { display: true, text: 'GMT Time' } }, y: { title: { display: true, text: 'Temperature (°C)' } } } }
             });
         }
         </script>

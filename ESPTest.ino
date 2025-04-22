@@ -51,36 +51,6 @@ QueueHandle_t motorCommandQueue = NULL;
 volatile bool motorBusy = false;
 SemaphoreHandle_t motorStatusLock = NULL;
 
-// Add new global variable for protecting motor control actions.
-SemaphoreHandle_t motorControlLock = NULL;
-
-// Add global variables for PID control and depth target
-const float targetDepth = 0.5; // target depth in meters
-float Kp = 2.0;              // Proportional gain
-float Ki = 0.1;              // Integral gain
-float Kd = 0.5;              // Derivative gain
-
-float integral = 0.0;
-float lastError = 0.0;
-const float deadband = 0.02; // 2cm deadband to avoid constant adjustments
-
-// Conversion function from pressure (in appropriate units) to depth in meters.
-// You may need to calibrate the conversion factor based on your sensor.
-float pressureToDepth(float pressure) {
-    const float atmosphericPressure = 101325.0;
-    return (pressure - atmosphericPressure) / (997.0 * 9.81);
-}
-
-// Add after other global variables
-volatile bool isRecordingSequence = false;
-float sequencePressures[600];    // Store 10 minutes worth of data (600 seconds)
-float sequenceTemperatures[600];
-int sequenceDataIndex = 0;
-SemaphoreHandle_t sequenceDataLock = NULL;
-
-// Add near other TaskHandle declarations at the top
-TaskHandle_t maintainDepthTaskHandle = NULL;
-
 // Sensor reading task
 void sensorTask(void *parameter) {
   while(1) {
@@ -92,16 +62,6 @@ void sensorTask(void *parameter) {
       sensorIdx = (sensorIdx + 1) % 120;
       iterationCount++;
       xSemaphoreGive(dataLock);
-      
-      // If recording sequence, store in sequence buffer
-      if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
-        if (isRecordingSequence && sequenceDataIndex < 600) {
-          sequencePressures[sequenceDataIndex] = sensor.pressure();
-          sequenceTemperatures[sequenceDataIndex] = sensor.temperature();
-          sequenceDataIndex++;
-        }
-        xSemaphoreGive(sequenceDataLock);
-      }
     }
     
     vTaskDelay(pdMS_TO_TICKS(1000)); // 1 second delay
@@ -118,81 +78,44 @@ void webTask(void *parameter) {
 
 // Updated web endpoint handler for /data to always display the latest readings
 void handleData() {
-  if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
+  if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
+    int count = iterationCount < 120 ? iterationCount : 120;
     String data = "";
-    
-    // If sequence recording exists, return sequence data
-    if (sequenceDataIndex > 0) {
-      for (int i = 0; i < sequenceDataIndex; i++) {
-        data += String(sequencePressures[i]) + "," + String(sequenceTemperatures[i]) + "\n";
-      }
-    } else {
-      // Fall back to circular buffer if no sequence data
-      if (xSemaphoreTake(dataLock, portMAX_DELAY)) {
-        int count = iterationCount < 120 ? iterationCount : 120;
-        for (int i = 0; i < count; i++) {
-          int idx = (sensorIdx + i) % 120;
-          data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
-        }
-        xSemaphoreGive(dataLock);
-      }
+    // Starting at sensorIdx yields the oldest reading in the circular buffer.
+    for (int i = 0; i < count; i++) {
+      int idx = (sensorIdx + i) % 120;
+      data += String(pressures[idx]) + "," + String(temperatures[idx]) + "\n";
     }
-    xSemaphoreGive(sequenceDataLock);
+    xSemaphoreGive(dataLock);
     server.send(200, "text/plain", data);
   }
 }
 
-// New function: runDepthHoldSequence replaces the previous two-phase sequence.
-void runDepthHoldSequence() {
-    // Suspend PID control during sequence
-    vTaskSuspend(maintainDepthTaskHandle);
-
-    // Phase 1: drive motor clockwise ("sucking in water") until within deadband
-    while (true) {
-        sensor.read();
-        float currentDepth = pressureToDepth(sensor.pressure());
-        float error = targetDepth - currentDepth;
-        if (fabs(error) < deadband)
-            break;
-        xSemaphoreTake(motorControlLock, portMAX_DELAY);
-        digitalWrite(dirPin, LOW); // clockwise
+// Modified runStepperSequence to add 45-second delay after bottom detection
+void runStepperSequence() {
+    // Spin clockwise until BUTTON_PIN_1 is pressed
+    digitalWrite(dirPin, LOW);  // clockwise
+    while(digitalRead(BUTTON_PIN_1) == LOW) {  // Changed logic - wait for LOW (button press)
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
         delayMicroseconds(motorSpeed);
-        xSemaphoreGive(motorControlLock);
-        taskYIELD();
+        taskYIELD(); // allow other tasks to run
     }
-    // Phase 2: hold state for 45 seconds (active depthhold)
-    unsigned long holdStart = millis();
-    while(millis() - holdStart < 45000) {
-        delay(100);
-    }
-    // Phase 3: run anticlockwise ("raising the float") until BUTTON_PIN_2 is pressed
-    xSemaphoreTake(motorControlLock, portMAX_DELAY);
+    // 45-second delay after hitting the bottom
+    delay(5000);
+    // Spin anticlockwise until BUTTON_PIN_2 is pressed
     digitalWrite(dirPin, HIGH); // anticlockwise
-    xSemaphoreGive(motorControlLock);
-    while(digitalRead(BUTTON_PIN_2) == HIGH) {
-        xSemaphoreTake(motorControlLock, portMAX_DELAY);
+    while(digitalRead(BUTTON_PIN_2) == LOW) {  // Changed logic - wait for LOW (button press)
         digitalWrite(stepPin, HIGH);
         delayMicroseconds(motorSpeed);
         digitalWrite(stepPin, LOW);
         delayMicroseconds(motorSpeed);
-        xSemaphoreGive(motorControlLock);
         taskYIELD();
     }
-    
-    // Stop recording when sequence is complete
-    if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
-        isRecordingSequence = false;
-        xSemaphoreGive(sequenceDataLock);
-    }
-
-    // Resume PID control after sequence
-    vTaskResume(maintainDepthTaskHandle);
 }
 
-// Update motorTask
+// Modify motorTask
 void motorTask(void *parameter) {
   bool command;
   while(1) {
@@ -202,7 +125,7 @@ void motorTask(void *parameter) {
         xSemaphoreGive(motorStatusLock);
       }
       
-      runDepthHoldSequence(); // replaced runStepperSequence call
+      runStepperSequence();
       
       if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
         motorBusy = false;
@@ -213,7 +136,8 @@ void motorTask(void *parameter) {
   }
 }
 
-// Update handleControl messaging to reflect the depth control sequence
+// Update the web endpoint handler to trigger the new sequence
+// Modify handleControl
 void handleControl() {
   if(server.hasArg("action") && server.arg("action") == "start") {
     bool canStart = false;
@@ -224,19 +148,12 @@ void handleControl() {
     }
     
     if (canStart) {
-      // Reset and start sequence recording
-      if (xSemaphoreTake(sequenceDataLock, portMAX_DELAY)) {
-        sequenceDataIndex = 0;
-        isRecordingSequence = true;
-        xSemaphoreGive(sequenceDataLock);
-      }
-      
       bool command = true;
       xQueueSend(motorCommandQueue, &command, portMAX_DELAY);
       server.send(200, "text/html", 
         "<html><body>"
-        "<p>Depth control sequence started.</p>"
-        "<p>Float is adjusting to target depth and will hold for 45 seconds.</p>"
+        "<p>Stepper sequence started.</p>"
+        "<p>Motor is busy. Please wait for completion.</p>"
         "<a href='/control'>Back</a>"
         "</body></html>");
     } else {
@@ -255,10 +172,10 @@ void handleControl() {
     
     String html = "<html><body>";
     if (isBusy) {
-      html += "<p>Motor is currently running depth control sequence...</p>";
-      html += "<button disabled>Start Depth Control Sequence</button>";
+      html += "<p>Motor is currently running...</p>";
+      html += "<button disabled>Start Stepper Sequence</button>";
     } else {
-      html += "<button onclick=\"location.href='/control?action=start'\">Start Depth Control Sequence</button>";
+      html += "<button onclick=\"location.href='/control?action=start'\">Start Stepper Sequence</button>";
     }
     html += "</body></html>";
     server.send(200, "text/html", html);
@@ -267,7 +184,6 @@ void handleControl() {
 
 // Stepper motor routine
 void runStepper(int steps, bool clockwise) {
-  xSemaphoreTake(motorControlLock, portMAX_DELAY); // Lock motor control
   digitalWrite(dirPin, (clockwise ? LOW : HIGH));
   for (int i = 0; i < steps; i++) {
     digitalWrite(stepPin, HIGH);
@@ -275,60 +191,6 @@ void runStepper(int steps, bool clockwise) {
     digitalWrite(stepPin, LOW);
     delayMicroseconds(motorSpeed);
     yield(); // Feed watchdog
-  }
-  xSemaphoreGive(motorControlLock); // Release lock
-}
-
-// New PID control task to continuously adjust motor to maintain target depth.
-void maintainDepthTask(void *parameter) {
-  const TickType_t delayTicks = pdMS_TO_TICKS(200); // control loop period ~200ms
-  while(1) {
-    // If depth control sequence is running, skip PID adjustments.
-    if(xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
-      if(motorBusy) {
-        xSemaphoreGive(motorStatusLock);
-        vTaskDelay(delayTicks);
-        continue;
-      }
-      xSemaphoreGive(motorStatusLock);
-    }
-    
-    float currentPressure = 0.0;
-    float currentDepth = 0.0;
-    // Read the latest sensor pressure value from the circular buffer.
-    if(xSemaphoreTake(dataLock, portMAX_DELAY)) {
-      int latestIdx = (iterationCount == 0) ? 0 : (sensorIdx == 0 ? 119 : sensorIdx - 1); // corrected index
-      currentPressure = pressures[latestIdx];
-      xSemaphoreGive(dataLock);
-    }
-    // Convert pressure to depth.
-    currentDepth = pressureToDepth(currentPressure);
-    
-    // Compute error between target depth and current depth.
-    float error = targetDepth - currentDepth;
-    
-    // Implement deadband to prevent over adjustment for small variations.
-    if(fabs(error) < deadband) {
-      integral = 0; // reset integral when within deadband to avoid windup
-      lastError = error;
-    } else {
-      // PID calculations
-      integral += error * 0.2; // 0.2 sec loop time (approx)
-      float derivative = (error - lastError) / 0.2;
-      float pidOutput = Kp * error + Ki * integral + Kd * derivative;
-      lastError = error;
-      
-      // Determine motor action from PID output.
-      // Here, if pidOutput is positive, we need to add water (or adjust motor in one direction)
-      // and if negative, remove water (or adjust motor in opposite direction).
-      // Adjust motor speed/step count based on magnitude of pidOutput.
-      int steps = abs(pidOutput) * 10; // scale factor (tuning required)
-      if(steps > 0) {
-        // Use motorControlLock inside runStepper.
-        runStepper(steps, (error > 0 ? false : true));
-      }
-    }
-    vTaskDelay(delayTicks);
   }
 }
 
@@ -397,10 +259,6 @@ void setup() {
     
     // Add this before creating tasks
     motorStatusLock = xSemaphoreCreateMutex();
-    motorControlLock = xSemaphoreCreateMutex(); // Added mutex for motor control
-    
-    // Add after other mutex creations
-    sequenceDataLock = xSemaphoreCreateMutex();
     
     // Create tasks with different priorities
     xTaskCreatePinnedToCore(
@@ -431,17 +289,6 @@ void setup() {
       3,  // Highest priority
       &motorTaskHandle,
       1  // Run on Core 1
-    );
-    
-    // Create the new PID control task for depth maintenance.
-    xTaskCreatePinnedToCore(
-      maintainDepthTask,
-      "MaintainDepthTask",
-      4096,
-      NULL,
-      2,
-      &maintainDepthTaskHandle,  // Store the handle
-      0  // Run on Core 0 instead of 1
     );
 }
 
