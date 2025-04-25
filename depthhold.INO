@@ -14,7 +14,7 @@ void runStepper(int steps, bool clockwise);
 void my_bottle_go_up();
 void my_bottle_go_down();
 void handleDepthHold();  // New prototype
-void myStepperSequence();  // Update prototype
+void myStepperSequence(int depth);  // Update prototype
 
 // Define sensor I2C pins for ESP32 (cables connect as labeled)
 #define CUSTOM_SDA_PIN 21 // Sensor SDA (GPIO21/D21)
@@ -57,9 +57,6 @@ QueueHandle_t motorCommandQueue = NULL;
 // Add these near other global variables
 volatile bool motorBusy = false;
 SemaphoreHandle_t motorStatusLock = NULL;
-
-// Global variable to store target depth
-int targetDepth = 0;
 
 // Sensor reading task
 void sensorTask(void *parameter) {
@@ -104,8 +101,7 @@ void handleData() {
 void handleDepthHold() {
     if (server.hasArg("depth")) {
         int depth = server.arg("depth").toInt();  // Get depth from URL
-        targetDepth = depth;  // Set global target depth
-        myStepperSequence();  // Use global target depth
+        myStepperSequence(depth);  // Pass depth to the sequence
         server.send(200, "text/html", 
             "<html><body>"
             "<p>Depth hold sequence started for depth: " + String(depth) + ".</p>"
@@ -118,18 +114,6 @@ void handleDepthHold() {
             "<a href='/control'>Back</a>"
             "</body></html>");
     }
-}
-
-// Web endpoint to set target depth
-void handleSetDepth() {
-  if (server.hasArg("depth")) {
-    targetDepth = server.arg("depth").toInt();
-    server.send(200, "text/html",
-      "<html><body>Target depth set to: " + String(targetDepth) + " meters.<br><a href='/control'>Back</a></body></html>");
-  } else {
-    server.send(400, "text/html",
-      "<html><body>Missing 'depth' parameter.<br><a href='/control'>Back</a></body></html>");
-  }
 }
 
 // Modified runStepperSequence to add 45-second delay after bottom detection
@@ -153,28 +137,26 @@ void runStepperSequence() {
     }
 }
 
-void myStepperSequence() {
+void myStepperSequence(int depth) {
   int myStepperCount = 0;
   while (digitalRead(BUTTON_PIN_2) == LOW) {
     runStepper(10, false);
   }
 
-  while (digitalRead(BUTTON_PIN_1) == LOW && myStepperCount <= targetDepth) {
+  while (digitalRead(BUTTON_PIN_1) == LOW && myStepperCount <= depth) {
     runStepper(10, true);
     myStepperCount += 10;
   }
 
-  sensor.read();
-  float fluidDensity = 997.0;
-  float g = 9.80665;
-  float temp = sensor.temperature();
-  float targetPressure = 1013.25 + (fluidDensity * g * targetDepth) / 100.0;
+  while (digitalRead(BUTTON_PIN_1) == LOW && myStepperCount <= 4700) {
+    runStepper(10, true);
+    myStepperCount += 10;
+  }
 
   unsigned long startTime = millis();
-  motorSpeed = 5000;
+  motorSpeed = 2000;
   while ((millis() - startTime) / 1000 <= 300 && myStepperCount <= 4780 && myStepperCount >= 4620) {
-    sensor.read();
-    if (sensor.pressure() > targetPressure) {
+    if (sensor.pressure() > 1030) { // Use your desired threshold here
       my_bottle_go_up();
     } else {
       my_bottle_go_down();
@@ -202,6 +184,23 @@ void motorTask(void *parameter) {
       if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
         motorBusy = true;
         xSemaphoreGive(motorStatusLock);
+      }
+      
+      runStepperSequence();
+      
+      if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
+        motorBusy = false;
+        xSemaphoreGive(motorStatusLock);
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
+}
+
+// Update the web endpoint handler to trigger the new sequence
+void handleControl() {
+  if(server.hasArg("action") && server.arg("action") == "start") {
+    bool canStart = false;
     if (xSemaphoreTake(motorStatusLock, portMAX_DELAY)) {
       canStart = !motorBusy;
       xSemaphoreGive(motorStatusLock);
