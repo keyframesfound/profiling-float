@@ -97,24 +97,7 @@ void handleData() {
   }
 }
 
-// New handler for /depthhold
-void handleDepthHold() {
-    if (server.hasArg("depth")) {
-        int depth = server.arg("depth").toInt();  // Get depth from URL
-        myStepperSequence(depth);  // Pass depth to the sequence
-        server.send(200, "text/html", 
-            "<html><body>"
-            "<p>Depth hold sequence started for depth: " + String(depth) + ".</p>"
-            "<a href='/control'>Back</a>"
-            "</body></html>");
-    } else {
-        server.send(400, "text/html", 
-            "<html><body>"
-            "<p>Invalid request. Please provide a depth parameter.</p>"
-            "<a href='/control'>Back</a>"
-            "</body></html>");
-    }
-}
+
 
 // Modified runStepperSequence to add 45-second delay after bottom detection
 void runStepperSequence() {
@@ -137,29 +120,54 @@ void runStepperSequence() {
     }
 }
 
+
+// New handler for /depthhold
+void handleDepthHold() {
+    if (server.hasArg("depth")) {
+        int depth = server.arg("depth").toInt();  // Get depth from URL
+        myStepperSequence(depth);  // Pass depth to the sequence
+        server.send(200, "text/html", 
+            "<html><body>"
+            "<p>Depth hold sequence started for depth: " + String(depth) + ".</p>"
+            "<a href='/control'>Back</a>"
+            "</body></html>");
+    } else {
+        server.send(400, "text/html", 
+            "<html><body>"
+            "<p>Invalid request. Please provide a depth parameter.</p>"
+            "<a href='/control'>Back</a>"
+            "</body></html>");
+    }
+}
+
 void myStepperSequence(int depth) {
   int myStepperCount = 0;
   while (digitalRead(BUTTON_PIN_2) == LOW) {
     runStepper(10, false);
   }
 
-  while (digitalRead(BUTTON_PIN_1) == LOW && myStepperCount <= depth) {
-    runStepper(10, true);
-    myStepperCount += 10;
-  }
-
-  while (digitalRead(BUTTON_PIN_1) == LOW && myStepperCount <= 4700) {
+  // while (digitalRead(BUTTON_PIN_1) == LOW && myStepperCount <= depth) {
+  //   runStepper(10, true);
+  //   myStepperCount += 10;
+  // }
+  int midpt=3300;
+  while (digitalRead(BUTTON_PIN_1) == LOW && myStepperCount <= midpt) {
     runStepper(10, true);
     myStepperCount += 10;
   }
 
   unsigned long startTime = millis();
-  motorSpeed = 2000;
-  while ((millis() - startTime) / 1000 <= 300 && myStepperCount <= 4780 && myStepperCount >= 4620) {
-    if (sensor.pressure() > 1030) { // Use your desired threshold here
+  motorSpeed = 7000;
+  while ((millis() - startTime) / 1000 <= 120 ) {
+
+
+    //&& myStepperCount <= midpt+500 && myStepperCount >= midpt-500
+    if (sensor.pressure() > 1030 && myStepperCount>=midpt-300) { // Use your desired threshold here
       my_bottle_go_up();
-    } else {
+      myStepperCount -= 10;
+    } else if(myStepperCount<=midpt+300){
       my_bottle_go_down();
+      myStepperCount += 10;
     }
   }
 }
@@ -279,7 +287,7 @@ void setup() {
     server.on("/data", handleData);
     server.on("/control", handleControl);
     server.on("/depthhold", handleDepthHold);  // New endpoint
-
+    
     server.begin();
 
     dataLock = xSemaphoreCreateMutex();
