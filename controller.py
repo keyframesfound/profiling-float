@@ -1,4 +1,6 @@
 from flask import Flask, render_template_string
+from datetime import datetime
+from zoneinfo import ZoneInfo  # Use zoneinfo instead of pytz
 
 app = Flask(__name__)
 
@@ -28,58 +30,167 @@ html_template = '''
 def home():
     return render_template_string(html_template)
 
-# Updated graph_template to show Depth (m) instead of pressure and display time in GMT+8.
+# New route for graph generation
 @app.route('/graph', methods=['GET'])
 def graph():
-    graph_template = '''
+    hong_kong_time = datetime.now(ZoneInfo("Asia/Hong_Kong"))
+    hong_kong_time_str = hong_kong_time.strftime('%Y-%m-%d %H:%M:%S')
+    hong_kong_time_js = hong_kong_time.strftime('%H:%M:%S')
+    graph_template = f'''
     <!doctype html>
     <html>
     <head>
-        <title>iEngineer</title>
-        <!-- Changed to load Chart.js locally -->
+        <title>Graph Generator</title>
         <script src="/static/js/chart.js"></script>
     </head>
     <body>
-        <h1>iEngineer</h1>
-        <p id="gmtTime"></p>
-        <textarea id="dataInput" rows="10" cols="50" placeholder="Paste your comma separated values: depth,temperature,GMT Time on each line"></textarea>
+        <h1>Graph Generator</h1>
+        <p>Current Hong Kong Time: {hong_kong_time_str}</p>
+        <textarea id="dataInput" rows="10" cols="50" placeholder="Paste your comma separated values: pressure,temperature on each line"></textarea>
         <br>
         <button onclick="generateGraphs()">Generate Graphs</button>
         <div>
-            <canvas id="graphDepth" width="400" height="200"></canvas>
-            <canvas id="graphTemp" width="400" height="200"></canvas>
+            <div style="margin-bottom:5px;"><b>iEngineering</b></div>
+            <canvas id="graph1" width="400" height="200"></canvas>
+            <div style="margin:10px 0 5px 0;"><b>iEngineering</b></div>
+            <canvas id="graph2" width="400" height="200"></canvas>
         </div>
         <script>
-        function generateGraphs() {
+        function generateGraphs() {{
             const lines = document.getElementById('dataInput').value.split('\\n').filter(line => line.trim() !== '');
-            let currentGMT = "";
+            const pressures = [];
             const depths = [];
             const temperatures = [];
-            const gmtTimes = [];
-            lines.forEach(line => {
+            const timeLabels = [];
+            let lastTemp = 0;
+            let lastPressure = 0;
+            // Use time after initialise (0, 5, 10, ...) for each record (5 seconds interval)
+            for (let i = 0; i < lines.length; i++) {{
+                const line = lines[i];
                 const parts = line.split(',');
-                if (parts[0].trim().startsWith("GMT Time:")) {
-                    currentGMT = parts[0].replace("GMT Time:", "").trim();
-                    document.getElementById('gmtTime').innerText = "Current GMT: " + currentGMT;
-                } else if(parts.length >= 3) {
-                    depths.push(parseFloat(parts[0]));
-                    temperatures.push(parseFloat(parts[1]));
-                    gmtTimes.push(currentGMT);
-                }
-            });
-            // Graph for Depth (m) using GMT time as labels
-            new Chart(document.getElementById('graphDepth').getContext('2d'), {
+                if(parts.length >= 2) {{
+                    // Time after initialise in 5 second intervals
+                    timeLabels.push((i * 5).toString());
+                    let rawPressure = parseFloat(parts[0]);
+                    let pressure = rawPressure / 1000;
+                    if (rawPressure < 0) pressure = lastPressure;
+                    else if (rawPressure > 1900) pressure = lastPressure;
+                    else lastPressure = pressure;
+                    pressures.push(pressure);
+                    // Calculate depth in meters: depth = pressure (kPa) / 9.81
+                    let depth = pressure / 9.81;
+                    depths.push(depth);
+                    let temp = parseFloat(parts[1]);
+                    if (temp < 0 || temp > 100) temp = lastTemp;
+                    else lastTemp = temp;
+                    temperatures.push(temp);
+                }}
+            }}
+
+            const ctx1 = document.getElementById('graph1').getContext('2d');
+            const ctx2 = document.getElementById('graph2').getContext('2d');
+            
+            // Graph for Depth (meters)
+            new Chart(ctx1, {{
                 type: 'line',
-                data: { labels: gmtTimes, datasets: [{ label: 'Depth (m)', data: depths, borderColor: 'rgba(255,99,132,1)', fill: false, tension: 0.1 }] },
-                options: { responsive: true, scales: { x: { title: { display: true, text: 'GMT Time' } }, y: { title: { display: true, text: 'Depth (m)' } } } }
-            });
-            // Graph for Temperature (°C) using GMT time as labels
-            new Chart(document.getElementById('graphTemp').getContext('2d'), {
+                data: {{
+                    labels: timeLabels,
+                    datasets: [{{
+                        label: 'Depth (meters)',
+                        data: depths,
+                        borderColor: 'rgba(255,99,132,1)',
+                        fill: false,
+                        tension: 0.1
+                    }}]
+                }},
+                options: {{ 
+                    responsive: true,
+                    scales: {{
+                        x: {{
+                            title: {{
+                                display: true,
+                                text: 'Time after initialise (s)'
+                            }}
+                        }},
+                        y: {{
+                            title: {{
+                                display: true,
+                                text: 'Depth (meters)'
+                            }}
+                        }}
+                    }}
+                }}
+            }});
+            
+            // Graph for Temperature
+            new Chart(ctx2, {{
                 type: 'line',
-                data: { labels: gmtTimes, datasets: [{ label: 'Temperature (°C)', data: temperatures, borderColor: 'rgba(54,162,235,1)', fill: false, tension: 0.1 }] },
-                options: { responsive: true, scales: { x: { title: { display: true, text: 'GMT Time' } }, y: { title: { display: true, text: 'Temperature (°C)' } } } }
-            });
-        }
+                data: {{
+                    labels: timeLabels,
+                    datasets: [{{
+                        label: 'Temperature (°C)',
+                        data: temperatures,
+                        borderColor: 'rgba(54,162,235,1)',
+                        fill: false,
+                        tension: 0.1
+                    }}]
+                }},
+                options: {{ 
+                    responsive: true,
+                    scales: {{
+                        x: {{
+                            title: {{
+                                display: true,
+                                text: 'Time after initialise (s)'
+                            }}
+                        }},
+                        y: {{
+                            title: {{
+                                display: true,
+                                text: 'Temperature (°C)'
+                            }}
+                        }}
+                    }}
+                }}
+            }});
+
+            // List out every data input at the bottom
+            let dataListHtml = '<h3>Input Data</h3><ul style="list-style-type:none;padding-left:0;">';
+            lastTemp = 0;
+            lastPressure = 0;
+            for (let i = 0; i < lines.length; i++) {{
+                // Remove numbers after the comma and the comma itself for display
+                let line = lines[i].replace(/,.*/, '');
+                // Divide the data by 1000 and format to 4 significant digits for display
+                let divided = '';
+                let num = parseFloat(line);
+                let tempMeter = 0;
+                if (!isNaN(num)) {{
+                    let displayPressure = num;
+                    if (displayPressure < 0) displayPressure = lastPressure * 1000;
+                    else if (displayPressure > 1900) displayPressure = lastPressure * 1000;
+                    else lastPressure = displayPressure / 1000;
+                    divided = Number(displayPressure / 1000).toPrecision(4) + ' kpa ';
+                    tempMeter = Number(displayPressure / (1000*9.81)).toPrecision(4);
+                }}
+                // Show temperature as meter (depth = temperature / 9.81)
+                if (lines[i].split(',').length >= 2) {{
+                    let temp = parseFloat(lines[i].split(',')[1]);
+                    if (temp < 0 || temp > 100) temp = lastTemp;
+                    else lastTemp = temp;
+                    
+                }}
+                dataListHtml += '<li>RN07 ' + timeLabels[i] + ' UTC+8 ' + divided + tempMeter + ' meters</li>';
+            }}
+            dataListHtml += '</ul>';
+            let dataListDiv = document.getElementById('dataList');
+            if (!dataListDiv) {{
+                dataListDiv = document.createElement('div');
+                dataListDiv.id = 'dataList';
+                document.body.appendChild(dataListDiv);
+            }}
+            dataListDiv.innerHTML = dataListHtml;
+        }}
         </script>
     </body>
     </html>

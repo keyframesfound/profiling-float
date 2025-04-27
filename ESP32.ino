@@ -103,7 +103,7 @@ void runStepperSequence() {
         taskYIELD(); // allow other tasks to run
     }
     // 45-second delay after hitting the bottom
-    delay(5000);
+    delay(45000);
     // Spin anticlockwise until BUTTON_PIN_2 is pressed
     digitalWrite(dirPin, HIGH); // anticlockwise
     while(digitalRead(BUTTON_PIN_2) == LOW) {  // Changed logic - wait for LOW (button press)
