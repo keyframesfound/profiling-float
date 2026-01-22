@@ -1,7 +1,7 @@
 # Profiling Float Project // By Ryan Yeung
 An ESP32-based automated profiling float system for water measurements using MS5837 pressure/temperature sensor.
 
-# Step By Step 
+# Step By Step
 1. Download the ESP32.ino
 2. Use the arduino IDE, download the ESP board library
 <img width="196" height="25" alt="image" src="https://github.com/user-attachments/assets/461de9f4-e31e-4bcb-94f3-0e19d5db4e64" />
@@ -12,10 +12,14 @@ An ESP32-based automated profiling float system for water measurements using MS5
 4. Upload speed can be adjusted faster
 <img width="603" height="100" alt="image (2)" src="https://github.com/user-attachments/assets/938a8ade-f2ee-4045-8e7a-6422df6e0f56" />
 
-*Remarks: 
+Remark: 
 - You can flash the code onto the ESP32 through wifi (connect to the SSCFloat Wifi) so no need to disassemble the float each time you guys want to change the code, however make sure OTA is at the end of the code
+- CHANGE THE NAME OF THE WIFI - if you are running two different ESP32s - or else the WIFI SSID would clash and break
+
+# Commmon Errors
 - Pressure sensor is 3v not 5v so if data that comes out is weird then check power source
 - Float wifi and web server will **NOT** turn on if **NO** pressure sensor is detected
+- If the stepper motor does not stop when it reaches the top / bottom -> Button connection may have been inverted
 
 ## Hardware Requirements
 
@@ -23,7 +27,6 @@ An ESP32-based automated profiling float system for water measurements using MS5
 - MS5837 Pressure/Temperature Sensor
 - Stepper Motor
 - 2x Limit Switches
-- HC-SR04 Ultrasonic Sensor
 - Power Supply
 - Waterproof Housing
 
