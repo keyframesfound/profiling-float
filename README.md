@@ -1,5 +1,4 @@
-# Profiling Float Project
-
+# Profiling Float Project // By Ryan Yeung
 An ESP32-based automated profiling float system for water measurements using MS5837 pressure/temperature sensor.
 
 # Step By Step 
