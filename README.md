@@ -2,7 +2,7 @@
 
 An ESP32-based automated profiling float system for water measurements using MS5837 pressure/temperature sensor.
 
-#Step By Step 
+# Step By Step 
 1. Download the ESP32.ino
 2. Use the arduino IDE, download the ESP board library
 <img width="196" height="25" alt="image" src="https://github.com/user-attachments/assets/461de9f4-e31e-4bcb-94f3-0e19d5db4e64" />
@@ -17,6 +17,7 @@ An ESP32-based automated profiling float system for water measurements using MS5
 - You can flash the code onto the ESP32 through wifi (connect to the SSCFloat Wifi) so no need to disassemble the float each time you guys want to change the code, however make sure OTA is at the end of the code
 - Pressure sensor is 3v not 5v so if data that comes out is weird then check power source
 - Float wifi and web server will **NOT** turn on if **NO** pressure sensor is detected
+
 ## Hardware Requirements
 
 - ESP32 Development Board
